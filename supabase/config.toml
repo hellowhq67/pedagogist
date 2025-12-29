@@ -1,1 +1,16 @@
 project_id = "kynwgmdzwpraiwdaeold"
+
+[functions.transcribe-audio]
+verify_jwt = false
+
+[functions.score-writing]
+verify_jwt = false
+
+[functions.score-speaking]
+verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.elevenlabs-tts]
+verify_jwt = false
