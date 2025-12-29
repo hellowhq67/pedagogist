@@ -6,26 +6,41 @@ import { AppSidebar } from "@/components/layout/AppSidebar";
 import { QuestionListPanel } from "@/components/speaking/QuestionListPanel";
 import { SpeakingTest } from "@/components/speaking/SpeakingTest";
 import { WritingTest } from "@/components/writing/WritingTest";
+import { ReadingTest } from "@/components/reading/ReadingTest";
+import { ListeningTest } from "@/components/listening/ListeningTest";
 import { HistoryPanel } from "@/components/speaking/HistoryPanel";
 import { speakingQuestions, TestType, getTestTypeInfo } from "@/data/speakingQuestions";
 import { writingQuestions, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
+import { readingQuestions, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
+import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from "@/data/listeningQuestions";
 import { useUserHistory } from "@/hooks/useUserHistory";
+import { useScoringLimit } from "@/hooks/useScoringLimit";
 import { ScoreResult } from "@/lib/scoring";
-import { BookOpen, History, Menu, ListFilter, ChevronLeft } from "lucide-react";
+import { BookOpen, History, Menu, ListFilter, ChevronLeft, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+
+type SectionType = "speaking" | "writing" | "reading" | "listening";
+type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
 
 export default function Index() {
-  const [selectedSection, setSelectedSection] = useState<"speaking" | "writing">("speaking");
-  const [selectedType, setSelectedType] = useState<TestType | WritingTestType | null>(null);
+  const [selectedSection, setSelectedSection] = useState<SectionType>("speaking");
+  const [selectedType, setSelectedType] = useState<AllTestTypes | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
   const [isQuestionPanelOpen, setIsQuestionPanelOpen] = useState(false);
   const { saveAttempt } = useUserHistory();
+  const { remainingAttempts, canScore, incrementUsage } = useScoringLimit();
 
   const currentQuestions = selectedType
     ? selectedSection === "speaking"
       ? speakingQuestions.filter((q) => q.type === selectedType)
-      : writingQuestions.filter((q) => q.type === selectedType)
+      : selectedSection === "writing"
+      ? writingQuestions.filter((q) => q.type === selectedType)
+      : selectedSection === "reading"
+      ? readingQuestions.filter((q) => q.type === selectedType)
+      : listeningQuestions.filter((q) => q.type === selectedType)
     : [];
 
   const currentQuestion = currentQuestions[currentQuestionIndex];
@@ -34,6 +49,11 @@ export default function Index() {
     if (currentQuestion) {
       setCompletedQuestions((prev) => new Set(prev).add(currentQuestion.id));
       if (selectedSection === "speaking") {
+        const canProceed = await incrementUsage();
+        if (!canProceed) {
+          toast.error("Daily scoring limit reached (5/day). Try again tomorrow!");
+          return;
+        }
         await saveAttempt({
           questionId: currentQuestion.id,
           testType: currentQuestion.type as TestType,
@@ -59,16 +79,22 @@ export default function Index() {
     setIsQuestionPanelOpen(false);
   };
 
-  const handleSelectType = (type: TestType | WritingTestType) => {
+  const handleSelectType = (type: AllTestTypes) => {
     setSelectedType(type);
     setCurrentQuestionIndex(0);
   };
 
-  const typeInfo = selectedType
-    ? selectedSection === "speaking"
-      ? getTestTypeInfo(selectedType as TestType)
-      : getWritingTestTypeInfo(selectedType as WritingTestType)
-    : null;
+  const getTypeInfo = () => {
+    if (!selectedType) return null;
+    switch (selectedSection) {
+      case "speaking": return getTestTypeInfo(selectedType as TestType);
+      case "writing": return getWritingTestTypeInfo(selectedType as WritingTestType);
+      case "reading": return getReadingTestTypeInfo(selectedType as ReadingTestType);
+      case "listening": return getListeningTestTypeInfo(selectedType as ListeningTestType);
+    }
+  };
+
+  const typeInfo = getTypeInfo();
 
   return (
     <SidebarProvider>
@@ -176,15 +202,23 @@ export default function Index() {
                   </div>
 
                   {selectedSection === "speaking" && currentQuestion && (
-                    <SpeakingTest
-                      key={currentQuestion.id}
-                      question={currentQuestion as any}
-                      questionIndex={currentQuestionIndex}
-                      totalQuestions={currentQuestions.length}
-                      onComplete={(score, text, duration) => handleComplete(score, text, duration)}
-                      onNext={handleNext}
-                      onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
-                    />
+                    <>
+                      {!canScore && (
+                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                          <AlertCircle className="h-5 w-5 text-amber-500" />
+                          <span className="text-sm">Daily limit reached ({remainingAttempts}/5). Scoring disabled.</span>
+                        </div>
+                      )}
+                      <SpeakingTest
+                        key={currentQuestion.id}
+                        question={currentQuestion as any}
+                        questionIndex={currentQuestionIndex}
+                        totalQuestions={currentQuestions.length}
+                        onComplete={(score, text, duration) => handleComplete(score, text, duration)}
+                        onNext={handleNext}
+                        onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+                      />
+                    </>
                   )}
 
                   {selectedSection === "writing" && currentQuestion && (
@@ -193,6 +227,30 @@ export default function Index() {
                       question={currentQuestion as any}
                       onComplete={(score, text) => handleComplete(score, text)}
                       onNext={handleNext}
+                    />
+                  )}
+
+                  {selectedSection === "reading" && currentQuestion && (
+                    <ReadingTest
+                      key={currentQuestion.id}
+                      question={currentQuestion as any}
+                      questionIndex={currentQuestionIndex}
+                      totalQuestions={currentQuestions.length}
+                      onComplete={(score, correct) => {}}
+                      onNext={handleNext}
+                      onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+                    />
+                  )}
+
+                  {selectedSection === "listening" && currentQuestion && (
+                    <ListeningTest
+                      key={currentQuestion.id}
+                      question={currentQuestion as any}
+                      questionIndex={currentQuestionIndex}
+                      totalQuestions={currentQuestions.length}
+                      onComplete={(score, correct) => {}}
+                      onNext={handleNext}
+                      onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
                     />
                   )}
                 </div>
