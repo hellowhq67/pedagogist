@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_scoring_limits: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          id: string
+          scoring_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          scoring_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          id?: string
+          scoring_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

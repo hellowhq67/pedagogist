@@ -31,17 +31,22 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { speakingQuestions, TestType, getTestTypeInfo } from "@/data/speakingQuestions";
 import { writingQuestions, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
+import { readingQuestions, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
+import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from "@/data/listeningQuestions";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+type SectionType = "speaking" | "writing" | "reading" | "listening";
+type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
+
 interface AppSidebarProps {
-  selectedSection: "speaking" | "writing";
-  selectedType: TestType | WritingTestType | null;
-  onSelectSection: (section: "speaking" | "writing") => void;
-  onSelectType: (type: TestType | WritingTestType) => void;
+  selectedSection: SectionType;
+  selectedType: AllTestTypes | null;
+  onSelectSection: (section: SectionType) => void;
+  onSelectType: (type: AllTestTypes) => void;
 }
 
 const speakingTestTypes: TestType[] = [
