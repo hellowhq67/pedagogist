@@ -14,11 +14,17 @@ import { Search, Bookmark, ChevronDown, List, BarChart2, X } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { SpeakingQuestion, TestType, getTestTypeInfo } from "@/data/speakingQuestions";
 import { WritingQuestion, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
+import { ReadingQuestion, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
+import { ListeningQuestion, ListeningTestType, getListeningTestTypeInfo } from "@/data/listeningQuestions";
+
+type SectionType = "speaking" | "writing" | "reading" | "listening";
+type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
+type AllQuestions = SpeakingQuestion | WritingQuestion | ReadingQuestion | ListeningQuestion;
 
 interface QuestionListPanelProps {
-  section: "speaking" | "writing";
-  testType: TestType | WritingTestType;
-  questions: (SpeakingQuestion | WritingQuestion)[];
+  section: SectionType;
+  testType: AllTestTypes;
+  questions: AllQuestions[];
   currentQuestionIndex: number;
   completedQuestions?: Set<string>;
   onSelectQuestion: (index: number) => void;
@@ -40,9 +46,15 @@ export function QuestionListPanel({
   const [bookmarkFilter, setBookmarkFilter] = useState<"all" | "bookmarked">("all");
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set());
 
-  const typeInfo = section === "speaking" 
-    ? getTestTypeInfo(testType as TestType)
-    : getWritingTestTypeInfo(testType as WritingTestType);
+  const getTypeInfo = () => {
+    switch (section) {
+      case "speaking": return getTestTypeInfo(testType as TestType);
+      case "writing": return getWritingTestTypeInfo(testType as WritingTestType);
+      case "reading": return getReadingTestTypeInfo(testType as ReadingTestType);
+      case "listening": return getListeningTestTypeInfo(testType as ListeningTestType);
+    }
+  };
+  const typeInfo = getTypeInfo();
 
   const filteredQuestions = questions.filter((q, index) => {
     // Search filter
@@ -93,7 +105,7 @@ export function QuestionListPanel({
     }
   };
 
-  const getOriginalIndex = (question: SpeakingQuestion | WritingQuestion) => {
+  const getOriginalIndex = (question: AllQuestions) => {
     return questions.findIndex(q => q.id === question.id);
   };
 
