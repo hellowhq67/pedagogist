@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_snapshots: {
+        Row: {
+          created_at: string | null
+          id: string
+          listening_average: number | null
+          overall_average: number | null
+          questions_attempted: number | null
+          reading_average: number | null
+          snapshot_date: string
+          speaking_average: number | null
+          total_practice_minutes: number | null
+          user_id: string
+          writing_average: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          listening_average?: number | null
+          overall_average?: number | null
+          questions_attempted?: number | null
+          reading_average?: number | null
+          snapshot_date: string
+          speaking_average?: number | null
+          total_practice_minutes?: number | null
+          user_id: string
+          writing_average?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          listening_average?: number | null
+          overall_average?: number | null
+          questions_attempted?: number | null
+          reading_average?: number | null
+          snapshot_date?: string
+          speaking_average?: number | null
+          total_practice_minutes?: number | null
+          user_id?: string
+          writing_average?: number | null
+        }
+        Relationships: []
+      }
       daily_scoring_limits: {
         Row: {
           attempt_count: number
@@ -37,6 +79,51 @@ export type Database = {
           id?: string
           scoring_date?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      exam_goals: {
+        Row: {
+          created_at: string | null
+          exam_date: string
+          hours_per_day: number | null
+          id: string
+          study_days_per_week: number | null
+          target_listening_score: number | null
+          target_overall_score: number | null
+          target_reading_score: number | null
+          target_speaking_score: number | null
+          target_writing_score: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          exam_date: string
+          hours_per_day?: number | null
+          id?: string
+          study_days_per_week?: number | null
+          target_listening_score?: number | null
+          target_overall_score?: number | null
+          target_reading_score?: number | null
+          target_speaking_score?: number | null
+          target_writing_score?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          exam_date?: string
+          hours_per_day?: number | null
+          id?: string
+          study_days_per_week?: number | null
+          target_listening_score?: number | null
+          target_overall_score?: number | null
+          target_reading_score?: number | null
+          target_speaking_score?: number | null
+          target_writing_score?: number | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -67,6 +154,143 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      questions: {
+        Row: {
+          audio_url: string | null
+          correct_answer: Json | null
+          created_at: string | null
+          difficulty: string | null
+          discussion_transcript: Json | null
+          id: string
+          image_url: string | null
+          is_human_reviewed: boolean | null
+          max_score: number
+          options: Json | null
+          prompt: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          reference_text: string | null
+          situation_context: string | null
+          tags: string[] | null
+          usage_count: number | null
+        }
+        Insert: {
+          audio_url?: string | null
+          correct_answer?: Json | null
+          created_at?: string | null
+          difficulty?: string | null
+          discussion_transcript?: Json | null
+          id?: string
+          image_url?: string | null
+          is_human_reviewed?: boolean | null
+          max_score: number
+          options?: Json | null
+          prompt: string
+          question_type: Database["public"]["Enums"]["question_type"]
+          reference_text?: string | null
+          situation_context?: string | null
+          tags?: string[] | null
+          usage_count?: number | null
+        }
+        Update: {
+          audio_url?: string | null
+          correct_answer?: Json | null
+          created_at?: string | null
+          difficulty?: string | null
+          discussion_transcript?: Json | null
+          id?: string
+          image_url?: string | null
+          is_human_reviewed?: boolean | null
+          max_score?: number
+          options?: Json | null
+          prompt?: string
+          question_type?: Database["public"]["Enums"]["question_type"]
+          reference_text?: string | null
+          situation_context?: string | null
+          tags?: string[] | null
+          usage_count?: number | null
+        }
+        Relationships: []
+      }
+      scores: {
+        Row: {
+          ai_score: number | null
+          confidence_score: number | null
+          feedback: Json | null
+          human_score: number | null
+          id: string
+          max_score: number
+          model_version: string | null
+          needs_review: boolean | null
+          percentage: number | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          scored_at: string | null
+          scoring_latency_ms: number | null
+          scoring_method: string | null
+          skill_contributions: Json | null
+          status: Database["public"]["Enums"]["scoring_status"] | null
+          submission_id: string
+          total_score: number
+          trait_scores: Json | null
+          user_id: string
+        }
+        Insert: {
+          ai_score?: number | null
+          confidence_score?: number | null
+          feedback?: Json | null
+          human_score?: number | null
+          id?: string
+          max_score: number
+          model_version?: string | null
+          needs_review?: boolean | null
+          percentage?: number | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scored_at?: string | null
+          scoring_latency_ms?: number | null
+          scoring_method?: string | null
+          skill_contributions?: Json | null
+          status?: Database["public"]["Enums"]["scoring_status"] | null
+          submission_id: string
+          total_score: number
+          trait_scores?: Json | null
+          user_id: string
+        }
+        Update: {
+          ai_score?: number | null
+          confidence_score?: number | null
+          feedback?: Json | null
+          human_score?: number | null
+          id?: string
+          max_score?: number
+          model_version?: string | null
+          needs_review?: boolean | null
+          percentage?: number | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          scored_at?: string | null
+          scoring_latency_ms?: number | null
+          scoring_method?: string | null
+          skill_contributions?: Json | null
+          status?: Database["public"]["Enums"]["scoring_status"] | null
+          submission_id?: string
+          total_score?: number
+          trait_scores?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scores_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       speaking_attempts: {
         Row: {
@@ -119,15 +343,318 @@ export type Database = {
         }
         Relationships: []
       }
+      study_schedules: {
+        Row: {
+          completed_questions: number | null
+          created_at: string | null
+          estimated_minutes: number | null
+          id: string
+          is_completed: boolean | null
+          question_types: string[]
+          scheduled_date: string
+          skill_type: string
+          target_questions: number | null
+          user_id: string
+        }
+        Insert: {
+          completed_questions?: number | null
+          created_at?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_completed?: boolean | null
+          question_types: string[]
+          scheduled_date: string
+          skill_type: string
+          target_questions?: number | null
+          user_id: string
+        }
+        Update: {
+          completed_questions?: number | null
+          created_at?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_completed?: boolean | null
+          question_types?: string[]
+          scheduled_date?: string
+          skill_type?: string
+          target_questions?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      submissions: {
+        Row: {
+          audio_url: string | null
+          duration_ms: number | null
+          id: string
+          ordered_items: Json | null
+          processing_started_at: string | null
+          question_id: string | null
+          question_type: Database["public"]["Enums"]["question_type"]
+          selected_options: Json | null
+          session_id: string | null
+          submitted_at: string | null
+          text_response: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          duration_ms?: number | null
+          id?: string
+          ordered_items?: Json | null
+          processing_started_at?: string | null
+          question_id?: string | null
+          question_type: Database["public"]["Enums"]["question_type"]
+          selected_options?: Json | null
+          session_id?: string | null
+          submitted_at?: string | null
+          text_response?: string | null
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          duration_ms?: number | null
+          id?: string
+          ordered_items?: Json | null
+          processing_started_at?: string | null
+          question_id?: string | null
+          question_type?: Database["public"]["Enums"]["question_type"]
+          selected_options?: Json | null
+          session_id?: string | null
+          submitted_at?: string | null
+          text_response?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "test_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          credits_remaining: number | null
+          current_period_end: string | null
+          current_period_start: string | null
+          daily_credits_reset_at: string | null
+          daily_credits_used: number | null
+          id: string
+          polar_customer_id: string | null
+          polar_subscription_id: string | null
+          status: string | null
+          tier: Database["public"]["Enums"]["subscription_tier"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          credits_remaining?: number | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_credits_reset_at?: string | null
+          daily_credits_used?: number | null
+          id?: string
+          polar_customer_id?: string | null
+          polar_subscription_id?: string | null
+          status?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          credits_remaining?: number | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          daily_credits_reset_at?: string | null
+          daily_credits_used?: number | null
+          id?: string
+          polar_customer_id?: string | null
+          polar_subscription_id?: string | null
+          status?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      test_sessions: {
+        Row: {
+          completed_at: string | null
+          completed_questions: number | null
+          created_at: string | null
+          id: string
+          listening_score: number | null
+          overall_score: number | null
+          reading_score: number | null
+          speaking_score: number | null
+          started_at: string | null
+          test_type: string
+          total_questions: number | null
+          user_id: string
+          writing_score: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_questions?: number | null
+          created_at?: string | null
+          id?: string
+          listening_score?: number | null
+          overall_score?: number | null
+          reading_score?: number | null
+          speaking_score?: number | null
+          started_at?: string | null
+          test_type: string
+          total_questions?: number | null
+          user_id: string
+          writing_score?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_questions?: number | null
+          created_at?: string | null
+          id?: string
+          listening_score?: number | null
+          overall_score?: number | null
+          reading_score?: number | null
+          speaking_score?: number | null
+          started_at?: string | null
+          test_type?: string
+          total_questions?: number | null
+          user_id?: string
+          writing_score?: number | null
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          attempt_count: number | null
+          average_score: number | null
+          best_score: number | null
+          id: string
+          last_attempt_at: string | null
+          question_type: Database["public"]["Enums"]["question_type"]
+          skill_type: string
+          total_time_spent_ms: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          attempt_count?: number | null
+          average_score?: number | null
+          best_score?: number | null
+          id?: string
+          last_attempt_at?: string | null
+          question_type: Database["public"]["Enums"]["question_type"]
+          skill_type: string
+          total_time_spent_ms?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          attempt_count?: number | null
+          average_score?: number | null
+          best_score?: number | null
+          id?: string
+          last_attempt_at?: string | null
+          question_type?: Database["public"]["Enums"]["question_type"]
+          skill_type?: string
+          total_time_spent_ms?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_max_score_for_question_type: {
+        Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
+        Returns: number
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      reset_daily_credits: { Args: never; Returns: undefined }
+      should_have_human_review: {
+        Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
+        Returns: boolean
+      }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
+      use_scoring_credit: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      question_type:
+        | "read_aloud"
+        | "repeat_sentence"
+        | "retell_lecture"
+        | "answer_short_question"
+        | "summarise_group_discussion"
+        | "respond_to_situation"
+        | "summarize_written_text"
+        | "write_essay"
+        | "mc_single_reading"
+        | "mc_multiple_reading"
+        | "reorder_paragraphs"
+        | "fill_blanks_dropdown"
+        | "fill_blanks_drag"
+        | "summarize_spoken_text"
+        | "mc_multiple_listening"
+        | "mc_single_listening"
+        | "fill_blanks_listening"
+        | "highlight_correct_summary"
+        | "select_missing_word"
+        | "highlight_incorrect_words"
+        | "write_from_dictation"
+      scoring_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "needs_review"
+        | "human_review_pending"
+      subscription_tier: "free" | "basic" | "premium" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -254,6 +781,40 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      question_type: [
+        "read_aloud",
+        "repeat_sentence",
+        "retell_lecture",
+        "answer_short_question",
+        "summarise_group_discussion",
+        "respond_to_situation",
+        "summarize_written_text",
+        "write_essay",
+        "mc_single_reading",
+        "mc_multiple_reading",
+        "reorder_paragraphs",
+        "fill_blanks_dropdown",
+        "fill_blanks_drag",
+        "summarize_spoken_text",
+        "mc_multiple_listening",
+        "mc_single_listening",
+        "fill_blanks_listening",
+        "highlight_correct_summary",
+        "select_missing_word",
+        "highlight_incorrect_words",
+        "write_from_dictation",
+      ],
+      scoring_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "needs_review",
+        "human_review_pending",
+      ],
+      subscription_tier: ["free", "basic", "premium", "enterprise"],
+    },
   },
 } as const
