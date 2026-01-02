@@ -11,6 +11,7 @@ import { WritingTest } from "@/components/writing/WritingTest";
 import { ReadingTest } from "@/components/reading/ReadingTest";
 import { ListeningTest } from "@/components/listening/ListeningTest";
 import { HistoryPanel } from "@/components/speaking/HistoryPanel";
+import { StudyPlanner } from "@/components/dashboard/StudyPlanner";
 import { speakingQuestions, TestType, getTestTypeInfo } from "@/data/speakingQuestions";
 import { writingQuestions, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
 import { readingQuestions, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
@@ -67,6 +68,7 @@ import {
   ArrowRight,
   Crown,
   LayoutDashboard,
+  CalendarDays,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 
