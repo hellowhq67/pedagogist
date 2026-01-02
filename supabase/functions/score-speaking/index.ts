@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +36,14 @@ interface ScoreResult {
   };
 }
 
+// Daily limits by tier
+const DAILY_LIMITS: Record<string, number> = {
+  free: 5,
+  basic: 50,
+  premium: 200,
+  enterprise: 1000,
+};
+
 // PTE Scoring weights based on Pearson official methodology
 const PTE_WEIGHTS = {
   "read-aloud": { content: 0.4, fluency: 0.3, pronunciation: 0.3 },
@@ -46,12 +55,82 @@ const PTE_WEIGHTS = {
   "read-and-retell": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
 };
 
+async function checkRateLimit(supabase: any, userId: string): Promise<{ allowed: boolean; remaining: number; tier: string }> {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Get user's subscription tier
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('tier, daily_credits_used')
+    .eq('user_id', userId)
+    .single();
+  
+  const tier = subscription?.tier || 'free';
+  const dailyLimit = DAILY_LIMITS[tier] || 5;
+  const used = subscription?.daily_credits_used || 0;
+  
+  if (used >= dailyLimit) {
+    return { allowed: false, remaining: 0, tier };
+  }
+  
+  // Increment usage
+  await supabase
+    .from('subscriptions')
+    .update({ 
+      daily_credits_used: used + 1,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId);
+  
+  return { allowed: true, remaining: dailyLimit - used - 1, tier };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Initialize Supabase client with user's auth
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authorization required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check rate limit
+    const rateLimit = await checkRateLimit(supabase, user.id);
+    if (!rateLimit.allowed) {
+      console.log(`Rate limit exceeded for user ${user.id} (tier: ${rateLimit.tier})`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Daily scoring limit exceeded",
+          remaining: 0,
+          tier: rateLimit.tier
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Rate limit check passed: ${rateLimit.remaining} remaining (tier: ${rateLimit.tier})`);
+
     const { testType, originalText, spokenText, imageDescription, lectureContent, question, expectedAnswer } = await req.json() as ScoringRequest;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -391,7 +470,7 @@ Respond ONLY with valid JSON:
 
 Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%, Fluency ${PTE_WEIGHTS[testType].fluency * 100}%, Pronunciation ${PTE_WEIGHTS[testType].pronunciation * 100}%`;
 
-    console.log(`Scoring ${testType} with PTE methodology...`);
+    console.log(`Scoring ${testType} with PTE methodology for user ${user.id}...`);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -405,7 +484,7 @@ Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.2, // Lower for more consistent scoring
+        temperature: 0.2,
       }),
     });
 
@@ -460,7 +539,11 @@ Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%
 
     console.log(`Scored successfully: Overall ${scoreResult.overallScore}/90 (C:${scoreResult.content} F:${scoreResult.fluency} P:${scoreResult.pronunciation})`);
 
-    return new Response(JSON.stringify(scoreResult), {
+    return new Response(JSON.stringify({
+      ...scoreResult,
+      remaining: rateLimit.remaining,
+      tier: rateLimit.tier
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

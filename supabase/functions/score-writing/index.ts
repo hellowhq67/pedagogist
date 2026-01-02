@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,6 +28,14 @@ interface ScoreResult {
   };
 }
 
+// Daily limits by tier
+const DAILY_LIMITS: Record<string, number> = {
+  free: 5,
+  basic: 50,
+  premium: 200,
+  enterprise: 1000,
+};
+
 const PTE_WEIGHTS: Record<string, { content: number; grammar: number; vocabulary: number; form: number }> = {
   "summarize-written-text": { content: 2, grammar: 2, vocabulary: 1, form: 2 },
   "write-essay": { content: 3, grammar: 2, vocabulary: 2, form: 2 },
@@ -34,12 +43,80 @@ const PTE_WEIGHTS: Record<string, { content: number; grammar: number; vocabulary
   "write-email": { content: 2, grammar: 2, vocabulary: 1, form: 2 },
 };
 
+async function checkRateLimit(supabase: any, userId: string): Promise<{ allowed: boolean; remaining: number; tier: string }> {
+  // Get user's subscription tier
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('tier, daily_credits_used')
+    .eq('user_id', userId)
+    .single();
+  
+  const tier = subscription?.tier || 'free';
+  const dailyLimit = DAILY_LIMITS[tier] || 5;
+  const used = subscription?.daily_credits_used || 0;
+  
+  if (used >= dailyLimit) {
+    return { allowed: false, remaining: 0, tier };
+  }
+  
+  // Increment usage
+  await supabase
+    .from('subscriptions')
+    .update({ 
+      daily_credits_used: used + 1,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId);
+  
+  return { allowed: true, remaining: dailyLimit - used - 1, tier };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Initialize Supabase client with user's auth
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authorization required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Invalid authentication" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check rate limit
+    const rateLimit = await checkRateLimit(supabase, user.id);
+    if (!rateLimit.allowed) {
+      console.log(`Rate limit exceeded for user ${user.id} (tier: ${rateLimit.tier})`);
+      return new Response(
+        JSON.stringify({ 
+          error: "Daily scoring limit exceeded",
+          remaining: 0,
+          tier: rateLimit.tier
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Rate limit check passed: ${rateLimit.remaining} remaining (tier: ${rateLimit.tier})`);
+
     const request: ScoringRequest = await req.json();
     const { testType, writtenText, sourceText, essayPrompt, emailContext } = request;
 
@@ -204,7 +281,11 @@ Provide general writing assessment.`;
 
     console.log("Writing score result:", JSON.stringify(result));
 
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify({
+      ...result,
+      remaining: rateLimit.remaining,
+      tier: rateLimit.tier
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
