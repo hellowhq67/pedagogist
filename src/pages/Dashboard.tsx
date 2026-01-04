@@ -445,13 +445,19 @@ export default function Dashboard() {
                         Continue your PTE practice journey. You're doing great!
                       </p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                       <Button 
                         onClick={() => setCurrentView('practice')}
                         className="shadow-[0_0_20px_hsl(var(--primary)/0.3)]"
                       >
                         <Play className="w-4 h-4 mr-2" />
                         Start Practice
+                      </Button>
+                      <Button variant="secondary" asChild>
+                        <Link to="/mock-test">
+                          <Clock className="w-4 h-4 mr-2" />
+                          Full Mock Test (2h 19m)
+                        </Link>
                       </Button>
                       <Button variant="outline" asChild>
                         <Link to="/#pricing">
