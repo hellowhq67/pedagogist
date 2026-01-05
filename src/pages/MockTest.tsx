@@ -14,6 +14,12 @@ import { speakingQuestions } from "@/data/speakingQuestions";
 import { writingQuestions } from "@/data/writingQuestions";
 import { readingQuestions } from "@/data/readingQuestions";
 import { listeningQuestions } from "@/data/listeningQuestions";
+import { 
+  additionalSpeakingQuestions, 
+  additionalWritingQuestions, 
+  additionalReadingQuestions, 
+  additionalListeningQuestions 
+} from "@/data/additionalQuestions";
 import { MockTestSection } from "@/components/mocktest/MockTestSection";
 import { MockTestCertificate } from "@/components/mocktest/MockTestCertificate";
 import { toast } from "sonner";
@@ -108,21 +114,27 @@ export default function MockTest() {
   useEffect(() => {
     const questions: any[] = [];
     
+    // Combine original questions with additional UKVI questions
+    const allSpeakingQuestions = [...speakingQuestions, ...additionalSpeakingQuestions];
+    const allWritingQuestions = [...writingQuestions, ...additionalWritingQuestions];
+    const allReadingQuestions = [...readingQuestions, ...additionalReadingQuestions];
+    const allListeningQuestions = [...listeningQuestions, ...additionalListeningQuestions];
+
     TEST_SECTIONS.forEach(section => {
       section.questionTypes.forEach(qt => {
         let sourceQuestions: any[] = [];
         
         if (section.id === "speaking") {
-          sourceQuestions = speakingQuestions.filter(q => 
+          sourceQuestions = allSpeakingQuestions.filter(q => 
             q.type === qt.type || 
             q.type.replace(/-/g, '-').toLowerCase() === qt.type.toLowerCase()
           );
         } else if (section.id === "reading") {
-          sourceQuestions = readingQuestions.filter(q => 
+          sourceQuestions = allReadingQuestions.filter(q => 
             q.type === qt.type
           );
         } else if (section.id === "listening") {
-          sourceQuestions = listeningQuestions.filter(q => 
+          sourceQuestions = allListeningQuestions.filter(q => 
             q.type === qt.type
           );
         }
@@ -491,17 +503,12 @@ export default function MockTest() {
         </div>
       </main>
       
-      {/* Footer Navigation */}
+      {/* Footer Navigation - Sequential only, no skip */}
       <footer className="border-t bg-card py-4">
         <div className="max-w-5xl mx-auto px-4 flex justify-between items-center">
-          <Button 
-            variant="outline" 
-            onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-            disabled={currentQuestionIndex === 0}
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Previous
-          </Button>
+          <div className="text-sm text-muted-foreground">
+            Complete each question to proceed. No skipping allowed.
+          </div>
           
           <div className="flex items-center gap-2">
             {TEST_SECTIONS.map((section, idx) => (
@@ -519,10 +526,9 @@ export default function MockTest() {
             ))}
           </div>
           
-          <Button onClick={handleSkipQuestion}>
-            Skip
-            <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
+          <div className="text-sm font-medium">
+            {currentSectionIndex + 1} of {TEST_SECTIONS.length} sections
+          </div>
         </div>
       </footer>
     </div>
