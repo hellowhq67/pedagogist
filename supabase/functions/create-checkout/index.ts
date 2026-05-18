@@ -103,7 +103,7 @@ serve(async (req) => {
         product_price_id: tierConfig.priceId,
         success_url: successUrl || `${req.headers.get("origin")}/dashboard?checkout=success`,
         cancel_url: cancelUrl || `${req.headers.get("origin")}/#pricing`,
-        customer_email: userData.user.email,
+        customer_email: userEmail,
         metadata: {
           user_id: userId,
           tier: tier,
