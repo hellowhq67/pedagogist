@@ -43,7 +43,33 @@ serve(async (req) => {
   }
 
   try {
-    const { tier, userId, successUrl, cancelUrl } = await req.json();
+    // Authenticate the caller via Authorization header
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Authentication required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabaseAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: authData, error: authError } = await supabaseAuthClient.auth.getUser();
+    if (authError || !authData?.user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = authData.user.id;
+    const { tier, successUrl, cancelUrl } = await req.json();
 
     console.log(`[CHECKOUT] Creating checkout for user ${userId}, tier: ${tier}`);
 
@@ -52,13 +78,12 @@ serve(async (req) => {
       throw new Error("POLAR_API_KEY is not configured");
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user email
-    const { data: userData } = await supabase.auth.admin.getUserById(userId);
-    if (!userData?.user?.email) {
+    // Get user email (use authenticated user's email, fall back to admin lookup)
+    const userEmail = authData.user.email
+      ?? (await supabase.auth.admin.getUserById(userId)).data?.user?.email;
+    if (!userEmail) {
       throw new Error("User not found");
     }
 
@@ -78,7 +103,7 @@ serve(async (req) => {
         product_price_id: tierConfig.priceId,
         success_url: successUrl || `${req.headers.get("origin")}/dashboard?checkout=success`,
         cancel_url: cancelUrl || `${req.headers.get("origin")}/#pricing`,
-        customer_email: userData.user.email,
+        customer_email: userEmail,
         metadata: {
           user_id: userId,
           tier: tier,
