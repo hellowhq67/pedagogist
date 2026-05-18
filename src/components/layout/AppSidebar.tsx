@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   BookOpen,
   Mic,
@@ -14,6 +14,9 @@ import {
   Users,
   Mail,
   Edit3,
+  LayoutDashboard,
+  ClipboardList,
+  CalendarClock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +36,7 @@ import { speakingQuestions, TestType, getTestTypeInfo } from "@/data/speakingQue
 import { writingQuestions, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
 import { readingQuestions, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
 import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from "@/data/listeningQuestions";
+import logo from "@/assets/logo.png";
 import {
   Collapsible,
   CollapsibleContent,
@@ -128,37 +132,42 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const location = useLocation();
   const [speakingOpen, setSpeakingOpen] = useState(selectedSection === "speaking");
   const [writingOpen, setWritingOpen] = useState(selectedSection === "writing");
   const [readingOpen, setReadingOpen] = useState(selectedSection === "reading");
   const [listeningOpen, setListeningOpen] = useState(selectedSection === "listening");
 
-  const getSpeakingCount = (type: TestType) => {
-    return speakingQuestions.filter(q => q.type === type).length;
-  };
+  const getSpeakingCount = (type: TestType) =>
+    speakingQuestions.filter((q) => q.type === type).length;
+  const getWritingCount = (type: WritingTestType) =>
+    writingQuestions.filter((q) => q.type === type).length;
+  const getReadingCount = (type: ReadingTestType) =>
+    readingQuestions.filter((q) => q.type === type).length;
+  const getListeningCount = (type: ListeningTestType) =>
+    listeningQuestions.filter((q) => q.type === type).length;
 
-  const getWritingCount = (type: WritingTestType) => {
-    return writingQuestions.filter(q => q.type === type).length;
-  };
-
-  const getReadingCount = (type: ReadingTestType) => {
-    return readingQuestions.filter(q => q.type === type).length;
-  };
-
-  const getListeningCount = (type: ListeningTestType) => {
-    return listeningQuestions.filter(q => q.type === type).length;
-  };
+  const mainNav = [
+    { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+    { title: "Mock Tests", url: "/mock-tests", icon: ClipboardList },
+    { title: "Full Mock Test", url: "/mock-test", icon: CalendarClock },
+  ];
 
   return (
     <Sidebar className={cn("border-r", collapsed ? "w-14" : "w-64")} collapsible="icon">
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-            <BookOpen className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <img
+            src={logo}
+            alt="PedagogistsPTE"
+            className="h-8 w-8 object-contain"
+            width={32}
+            height={32}
+            loading="lazy"
+          />
           {!collapsed && (
             <div>
-              <h1 className="font-bold text-lg">PTE Practice</h1>
+              <h1 className="font-bold text-lg">PedagogistsPTE</h1>
               <p className="text-xs text-muted-foreground">Academic & Core</p>
             </div>
           )}
@@ -166,6 +175,34 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Main navigation */}
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Navigate</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {mainNav.map((item) => {
+                const active = location.pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild isActive={active}>
+                      <NavLink
+                        to={item.url}
+                        className={cn(
+                          "flex items-center gap-2",
+                          active && "bg-primary/10 text-primary font-medium"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Speaking Section */}
         <Collapsible open={speakingOpen} onOpenChange={setSpeakingOpen}>
           <SidebarGroup>
