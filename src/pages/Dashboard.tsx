@@ -498,6 +498,7 @@ export default function Dashboard() {
                       <TabsTrigger value="progress">Weekly Progress</TabsTrigger>
                       <TabsTrigger value="skills">Skills Radar</TabsTrigger>
                       <TabsTrigger value="activity">Activity</TabsTrigger>
+                      <TabsTrigger value="schedule">Schedule Exam</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="progress">
@@ -512,7 +513,7 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={progressData}>
+                              <AreaChart data={weeklyProgress}>
                                 <defs>
                                   <linearGradient id="colorSpeaking" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
@@ -572,7 +573,7 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart data={skillsData}>
+                              <RadarChart data={skillsRadar}>
                                 <PolarGrid stroke="hsl(var(--border))" />
                                 <PolarAngleAxis dataKey="skill" stroke="hsl(var(--muted-foreground))" />
                                 <PolarRadiusAxis angle={30} domain={[0, 90]} stroke="hsl(var(--muted-foreground))" />
@@ -602,19 +603,19 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={activityData.length ? activityData : modules.map(m => ({ name: m.title, value: Math.floor(Math.random() * 60 + 20), fill: m.chartColor }))}>
+                              <BarChart data={activity}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                 <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
                                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    backgroundColor: 'hsl(var(--card))', 
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: 'hsl(var(--card))',
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '8px'
                                   }}
                                 />
                                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                  {(activityData.length ? activityData : modules.map(m => ({ name: m.title, value: 0, fill: m.chartColor }))).map((entry, index) => (
+                                  {activity.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.fill} />
                                   ))}
                                 </Bar>
