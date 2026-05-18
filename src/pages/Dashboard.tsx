@@ -19,7 +19,7 @@ import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from 
 import { useUserHistory } from "@/hooks/useUserHistory";
 import { useScoringLimit } from "@/hooks/useScoringLimit";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useUserData } from "@/contexts/UserDataContext";
 import { ScoreResult } from "@/lib/scoring";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,35 +115,24 @@ const modules = [
   },
 ];
 
-// Mock data generators
-const generateProgressData = () => {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return days.map((day) => ({
-    day,
-    speaking: Math.floor(50 + Math.random() * 30),
-    writing: Math.floor(45 + Math.random() * 35),
-    reading: Math.floor(55 + Math.random() * 25),
-    listening: Math.floor(40 + Math.random() * 40),
-  }));
-};
+// (analytics now driven by UserDataContext)
 
-const generateSkillsData = () => [
-  { skill: 'Speaking', score: 72, fullMark: 90 },
-  { skill: 'Writing', score: 68, fullMark: 90 },
-  { skill: 'Reading', score: 78, fullMark: 90 },
-  { skill: 'Listening', score: 65, fullMark: 90 },
-  { skill: 'Vocab', score: 70, fullMark: 90 },
-  { skill: 'Grammar', score: 75, fullMark: 90 },
-];
 
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast: showToast } = useToast();
-  
+  const {
+    weeklyProgress,
+    skillsRadar,
+    activity,
+    stats: realStats,
+    subscription,
+  } = useUserData();
+
   // View state: 'overview' or 'practice'
   const [currentView, setCurrentView] = useState<'overview' | 'practice'>('overview');
-  
+
   // Practice state
   const [selectedSection, setSelectedSection] = useState<SectionType>("speaking");
   const [selectedType, setSelectedType] = useState<AllTestTypes | null>(null);
@@ -152,13 +141,6 @@ export default function Dashboard() {
   const [isQuestionPanelOpen, setIsQuestionPanelOpen] = useState(false);
   const { saveAttempt } = useUserHistory();
   const { remainingAttempts, canScore, incrementUsage } = useScoringLimit();
-
-  // Analytics state
-  const [progressData, setProgressData] = useState(generateProgressData());
-  const [skillsData, setSkillsData] = useState(generateSkillsData());
-  const [userProgress, setUserProgress] = useState<any[]>([]);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [activityData, setActivityData] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -171,45 +153,6 @@ export default function Dashboard() {
     }
   }, [user, loading, navigate, showToast]);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserData();
-    }
-  }, [user]);
-
-  const fetchUserData = async () => {
-    try {
-      const { data: progress } = await supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', user?.id);
-      
-      if (progress) {
-        setUserProgress(progress);
-        const updatedActivity = modules.map((mod) => {
-          const modProgress = progress.find(p => p.skill_type === mod.id);
-          return {
-            name: mod.title,
-            value: modProgress?.attempt_count || Math.floor(Math.random() * 60 + 20),
-            fill: mod.chartColor,
-          };
-        });
-        setActivityData(updatedActivity);
-      }
-
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
-      
-      if (sub) {
-        setSubscription(sub);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
-  };
 
   const currentQuestions = selectedType
     ? selectedSection === "speaking"
@@ -283,29 +226,29 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { 
-      label: 'Questions Done', 
-      value: userProgress.reduce((acc, p) => acc + (p.attempt_count || 0), 0) || 86, 
+    {
+      label: 'Questions Done',
+      value: realStats.questionsDone,
       icon: Target,
-      change: '+12 this week'
+      change: realStats.questionsDone > 0 ? 'Keep it up!' : 'Start practicing'
     },
-    { 
-      label: 'Practice Time', 
-      value: `${Math.floor((userProgress.reduce((acc, p) => acc + (p.total_time_spent_ms || 0), 0) / 3600000) || 12)}h`, 
+    {
+      label: 'Practice Time',
+      value: `${realStats.practiceHours}h`,
       icon: Clock,
-      change: '+3h this week'
+      change: 'Total practice'
     },
-    { 
-      label: 'Current Streak', 
-      value: '7 days', 
+    {
+      label: 'Current Streak',
+      value: `${realStats.streakDays} day${realStats.streakDays === 1 ? '' : 's'}`,
       icon: Trophy,
-      change: 'Personal best!'
+      change: realStats.streakDays > 0 ? 'On a roll!' : 'Practice today'
     },
-    { 
-      label: 'Avg. Score', 
-      value: `${Math.floor(userProgress.reduce((acc, p) => acc + (p.average_score || 72), 0) / (userProgress.length || 1))}%`, 
+    {
+      label: 'Avg. Score',
+      value: `${realStats.averageScore}%`,
       icon: BarChart3,
-      change: '+5% improvement'
+      change: realStats.averageScore > 0 ? 'Across all skills' : 'No data yet'
     },
   ];
 
@@ -537,6 +480,7 @@ export default function Dashboard() {
                       <TabsTrigger value="progress">Weekly Progress</TabsTrigger>
                       <TabsTrigger value="skills">Skills Radar</TabsTrigger>
                       <TabsTrigger value="activity">Activity</TabsTrigger>
+                      <TabsTrigger value="schedule">Schedule Exam</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="progress">
@@ -551,7 +495,7 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={progressData}>
+                              <AreaChart data={weeklyProgress}>
                                 <defs>
                                   <linearGradient id="colorSpeaking" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
@@ -611,7 +555,7 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart data={skillsData}>
+                              <RadarChart data={skillsRadar}>
                                 <PolarGrid stroke="hsl(var(--border))" />
                                 <PolarAngleAxis dataKey="skill" stroke="hsl(var(--muted-foreground))" />
                                 <PolarRadiusAxis angle={30} domain={[0, 90]} stroke="hsl(var(--muted-foreground))" />
@@ -641,19 +585,19 @@ export default function Dashboard() {
                         <CardContent>
                           <div className="h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={activityData.length ? activityData : modules.map(m => ({ name: m.title, value: Math.floor(Math.random() * 60 + 20), fill: m.chartColor }))}>
+                              <BarChart data={activity}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                                 <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
                                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                                <Tooltip 
-                                  contentStyle={{ 
-                                    backgroundColor: 'hsl(var(--card))', 
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: 'hsl(var(--card))',
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '8px'
                                   }}
                                 />
                                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                  {(activityData.length ? activityData : modules.map(m => ({ name: m.title, value: 0, fill: m.chartColor }))).map((entry, index) => (
+                                  {activity.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.fill} />
                                   ))}
                                 </Bar>
@@ -662,6 +606,10 @@ export default function Dashboard() {
                           </div>
                         </CardContent>
                       </Card>
+                    </TabsContent>
+
+                    <TabsContent value="schedule">
+                      <StudyPlanner />
                     </TabsContent>
                   </Tabs>
                 </motion.div>

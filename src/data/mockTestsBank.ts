@@ -198,6 +198,29 @@ export const mockTestsList: MockTestInfo[] = [
     difficulty: "hard",
     version: "Jul 2025",
   },
+  // Additional 20 mock tests (UKVI & PTE Academic latest format research: 2025-2026)
+  ...Array.from({ length: 20 }, (_, i) => {
+    const num = 38 - Math.floor(i / 2);
+    const variant = i % 2 === 0 ? "A" : "B";
+    const months = ["Jun 2025", "May 2025", "Apr 2025", "Mar 2025", "Feb 2025", "Jan 2025", "Dec 2024", "Nov 2024", "Oct 2024", "Sep 2024"];
+    const month = months[Math.floor(i / 2)];
+    const isUKVI = i >= 14;
+    return {
+      id: `mock-test-${num}${variant.toLowerCase()}`,
+      name: isUKVI
+        ? `【VIP Full】PTE UKVI Mock Test ${num}${variant}`
+        : `【VIP Full】PTE Mock Test ${num}${variant}`,
+      description: isUKVI
+        ? `UKVI format (${month})`
+        : `PTE Academic ${month} format`,
+      type: "premium" as const,
+      testType: "full" as const,
+      duration: 139,
+      totalQuestions: 44 + (i % 4),
+      difficulty: (variant === "A" ? "medium" : "hard") as "medium" | "hard",
+      version: month,
+    };
+  }),
 ];
 
 // Section-based tests
