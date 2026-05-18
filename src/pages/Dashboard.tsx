@@ -19,7 +19,7 @@ import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from 
 import { useUserHistory } from "@/hooks/useUserHistory";
 import { useScoringLimit } from "@/hooks/useScoringLimit";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useUserData } from "@/contexts/UserDataContext";
 import { ScoreResult } from "@/lib/scoring";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -140,10 +140,17 @@ export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast: showToast } = useToast();
-  
+  const {
+    weeklyProgress,
+    skillsRadar,
+    activity,
+    stats: realStats,
+    subscription,
+  } = useUserData();
+
   // View state: 'overview' or 'practice'
   const [currentView, setCurrentView] = useState<'overview' | 'practice'>('overview');
-  
+
   // Practice state
   const [selectedSection, setSelectedSection] = useState<SectionType>("speaking");
   const [selectedType, setSelectedType] = useState<AllTestTypes | null>(null);
@@ -152,13 +159,6 @@ export default function Dashboard() {
   const [isQuestionPanelOpen, setIsQuestionPanelOpen] = useState(false);
   const { saveAttempt } = useUserHistory();
   const { remainingAttempts, canScore, incrementUsage } = useScoringLimit();
-
-  // Analytics state
-  const [progressData, setProgressData] = useState(generateProgressData());
-  const [skillsData, setSkillsData] = useState(generateSkillsData());
-  const [userProgress, setUserProgress] = useState<any[]>([]);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [activityData, setActivityData] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
