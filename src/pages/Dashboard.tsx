@@ -244,29 +244,29 @@ export default function Dashboard() {
   };
 
   const stats = [
-    { 
-      label: 'Questions Done', 
-      value: userProgress.reduce((acc, p) => acc + (p.attempt_count || 0), 0) || 86, 
+    {
+      label: 'Questions Done',
+      value: realStats.questionsDone,
       icon: Target,
-      change: '+12 this week'
+      change: realStats.questionsDone > 0 ? 'Keep it up!' : 'Start practicing'
     },
-    { 
-      label: 'Practice Time', 
-      value: `${Math.floor((userProgress.reduce((acc, p) => acc + (p.total_time_spent_ms || 0), 0) / 3600000) || 12)}h`, 
+    {
+      label: 'Practice Time',
+      value: `${realStats.practiceHours}h`,
       icon: Clock,
-      change: '+3h this week'
+      change: 'Total practice'
     },
-    { 
-      label: 'Current Streak', 
-      value: '7 days', 
+    {
+      label: 'Current Streak',
+      value: `${realStats.streakDays} day${realStats.streakDays === 1 ? '' : 's'}`,
       icon: Trophy,
-      change: 'Personal best!'
+      change: realStats.streakDays > 0 ? 'On a roll!' : 'Practice today'
     },
-    { 
-      label: 'Avg. Score', 
-      value: `${Math.floor(userProgress.reduce((acc, p) => acc + (p.average_score || 72), 0) / (userProgress.length || 1))}%`, 
+    {
+      label: 'Avg. Score',
+      value: `${realStats.averageScore}%`,
       icon: BarChart3,
-      change: '+5% improvement'
+      change: realStats.averageScore > 0 ? 'Across all skills' : 'No data yet'
     },
   ];
 
