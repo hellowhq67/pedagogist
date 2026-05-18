@@ -171,45 +171,6 @@ export default function Dashboard() {
     }
   }, [user, loading, navigate, showToast]);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserData();
-    }
-  }, [user]);
-
-  const fetchUserData = async () => {
-    try {
-      const { data: progress } = await supabase
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', user?.id);
-      
-      if (progress) {
-        setUserProgress(progress);
-        const updatedActivity = modules.map((mod) => {
-          const modProgress = progress.find(p => p.skill_type === mod.id);
-          return {
-            name: mod.title,
-            value: modProgress?.attempt_count || Math.floor(Math.random() * 60 + 20),
-            fill: mod.chartColor,
-          };
-        });
-        setActivityData(updatedActivity);
-      }
-
-      const { data: sub } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
-      
-      if (sub) {
-        setSubscription(sub);
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-    }
-  };
 
   const currentQuestions = selectedType
     ? selectedSection === "speaking"
