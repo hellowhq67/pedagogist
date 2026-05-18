@@ -115,26 +115,8 @@ const modules = [
   },
 ];
 
-// Mock data generators
-const generateProgressData = () => {
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return days.map((day) => ({
-    day,
-    speaking: Math.floor(50 + Math.random() * 30),
-    writing: Math.floor(45 + Math.random() * 35),
-    reading: Math.floor(55 + Math.random() * 25),
-    listening: Math.floor(40 + Math.random() * 40),
-  }));
-};
+// (analytics now driven by UserDataContext)
 
-const generateSkillsData = () => [
-  { skill: 'Speaking', score: 72, fullMark: 90 },
-  { skill: 'Writing', score: 68, fullMark: 90 },
-  { skill: 'Reading', score: 78, fullMark: 90 },
-  { skill: 'Listening', score: 65, fullMark: 90 },
-  { skill: 'Vocab', score: 70, fullMark: 90 },
-  { skill: 'Grammar', score: 75, fullMark: 90 },
-];
 
 export default function Dashboard() {
   const { user, loading, signOut } = useAuth();
@@ -624,6 +606,10 @@ export default function Dashboard() {
                           </div>
                         </CardContent>
                       </Card>
+                    </TabsContent>
+
+                    <TabsContent value="schedule">
+                      <StudyPlanner />
                     </TabsContent>
                   </Tabs>
                 </motion.div>
