@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import logo from '@/assets/logo.png';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { Separator } from '@/components/ui/separator';
+
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -168,6 +171,15 @@ export default function Auth() {
           </CardHeader>
 
           <CardContent>
+            <GoogleSignInButton label={isSignUp ? 'Sign up with Google' : 'Continue with Google'} />
+
+            <div className="relative my-5">
+              <Separator />
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-3 text-xs text-muted-foreground uppercase tracking-wider">
+                or
+              </span>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (
                 <div className="space-y-2">
@@ -243,6 +255,7 @@ export default function Auth() {
                 )}
               </Button>
             </form>
+
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">

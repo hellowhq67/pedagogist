@@ -37,11 +37,13 @@ import { writingQuestions, WritingTestType, getWritingTestTypeInfo } from "@/dat
 import { readingQuestions, ReadingTestType, getReadingTestTypeInfo } from "@/data/readingQuestions";
 import { listeningQuestions, ListeningTestType, getListeningTestTypeInfo } from "@/data/listeningQuestions";
 import logo from "@/assets/logo.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+
 
 type SectionType = "speaking" | "writing" | "reading" | "listening";
 type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
@@ -156,23 +158,27 @@ export function AppSidebar({
   return (
     <Sidebar className={cn("border-r", collapsed ? "w-14" : "w-64")} collapsible="icon">
       <SidebarHeader className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <img
-            src={logo}
-            alt="PedagogistsPTE"
-            className="h-8 w-8 object-contain"
-            width={32}
-            height={32}
-            loading="lazy"
-          />
-          {!collapsed && (
-            <div>
-              <h1 className="font-bold text-lg">PedagogistsPTE</h1>
-              <p className="text-xs text-muted-foreground">Academic & Core</p>
-            </div>
-          )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <img
+              src={logo}
+              alt="PedagogistsPTE"
+              className="h-8 w-8 object-contain shrink-0"
+              width={32}
+              height={32}
+              loading="lazy"
+            />
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="font-bold text-base truncate">PedagogistsPTE</h1>
+                <p className="text-xs text-muted-foreground">Academic & Core</p>
+              </div>
+            )}
+          </div>
+          {!collapsed && <ThemeToggle />}
         </div>
       </SidebarHeader>
+
 
       <SidebarContent>
         {/* Main navigation */}
