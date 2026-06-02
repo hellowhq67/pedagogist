@@ -611,6 +611,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_scoring_attempt: {
+        Args: { p_daily_limit?: number }
+        Returns: {
+          allowed: boolean
+          attempt_count: number
+          remaining: number
+        }[]
+      }
       reset_daily_credits: { Args: never; Returns: undefined }
       should_have_human_review: {
         Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
