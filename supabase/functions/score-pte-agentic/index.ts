@@ -137,8 +137,34 @@ serve(async (req) => {
   }
 
   try {
+    // Verify authenticated user from JWT
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const request: ScoringRequest = await req.json();
-    const { questionType, userId, submissionId } = request;
+    const { questionType, submissionId } = request;
+    // CRITICAL: Use the authenticated user id, never trust client-supplied userId
+    const userId = userData.user.id;
 
     console.log(`[AGENTIC SCORER] Processing ${questionType} for user ${userId}`);
 
@@ -147,12 +173,11 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check user credits
-    const { data: canUseCredit } = await supabase.rpc("use_scoring_credit", {
+    // Check user credits using the authenticated user's session so the
+    // use_scoring_credit auth.uid() check passes.
+    const { data: canUseCredit } = await supabaseAuth.rpc("use_scoring_credit", {
       p_user_id: userId,
     });
 

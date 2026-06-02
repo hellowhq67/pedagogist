@@ -80,78 +80,48 @@ export function useScoringLimit(): UseScoringLimitReturn {
   const incrementUsage = useCallback(async (): Promise<boolean> => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         // Handle local storage for non-logged-in users
         const localData = localStorage.getItem('scoring_limit');
         let currentCount = 0;
-        
+
         if (localData) {
           const parsed = JSON.parse(localData);
           if (parsed.date === getTodayDate()) {
             currentCount = parsed.count;
           }
         }
-        
+
         if (currentCount >= DAILY_LIMIT) {
           return false;
         }
-        
-        localStorage.setItem('scoring_limit', JSON.stringify({ 
-          date: getTodayDate(), 
-          count: currentCount + 1 
+
+        localStorage.setItem('scoring_limit', JSON.stringify({
+          date: getTodayDate(),
+          count: currentCount + 1
         }));
         setRemainingAttempts(DAILY_LIMIT - currentCount - 1);
         return true;
       }
 
-      const today = getTodayDate();
+      // Server-side increment via SECURITY DEFINER function (prevents client-side bypass)
+      const { data, error } = await supabase.rpc("increment_scoring_attempt", {
+        p_daily_limit: DAILY_LIMIT,
+      });
 
-      // Try to get existing record
-      const { data: existing } = await supabase
-        .from("daily_scoring_limits")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("scoring_date", today)
-        .single();
-
-      if (existing) {
-        if (existing.attempt_count >= DAILY_LIMIT) {
-          return false;
-        }
-
-        const { error: updateError } = await supabase
-          .from("daily_scoring_limits")
-          .update({ 
-            attempt_count: existing.attempt_count + 1,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", existing.id);
-
-        if (updateError) {
-          console.error("Error updating scoring limit:", updateError);
-          return false;
-        }
-
-        setRemainingAttempts(Math.max(0, DAILY_LIMIT - existing.attempt_count - 1));
-      } else {
-        // Create new record
-        const { error: insertError } = await supabase
-          .from("daily_scoring_limits")
-          .insert({
-            user_id: user.id,
-            scoring_date: today,
-            attempt_count: 1
-          });
-
-        if (insertError) {
-          console.error("Error inserting scoring limit:", insertError);
-          return false;
-        }
-
-        setRemainingAttempts(DAILY_LIMIT - 1);
+      if (error) {
+        console.error("Error incrementing scoring limit:", error);
+        return false;
       }
 
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row?.allowed) {
+        setRemainingAttempts(0);
+        return false;
+      }
+
+      setRemainingAttempts(row.remaining ?? 0);
       return true;
     } catch (err) {
       console.error("Error incrementing usage:", err);

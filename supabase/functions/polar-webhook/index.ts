@@ -22,6 +22,11 @@ serve(async (req) => {
 
   try {
     const POLAR_WEBHOOK_SECRET = Deno.env.get("POLAR_WEBHOOK_SECRET");
+    if (!POLAR_WEBHOOK_SECRET) {
+      console.error("POLAR_WEBHOOK_SECRET is not configured - rejecting webhook");
+      return new Response("Webhook secret not configured", { status: 500 });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -33,23 +38,26 @@ serve(async (req) => {
 
     const body = await req.text();
 
-    // Verify webhook signature if secret is configured
-    if (POLAR_WEBHOOK_SECRET && webhookId && webhookTimestamp && webhookSignature) {
-      const signedPayload = `${webhookId}.${webhookTimestamp}.${body}`;
-      const expectedSignature = createHmac("sha256", POLAR_WEBHOOK_SECRET)
-        .update(signedPayload)
-        .digest("base64");
+    if (!webhookId || !webhookTimestamp || !webhookSignature) {
+      console.error("Missing webhook signature headers");
+      return new Response("Missing webhook headers", { status: 400 });
+    }
 
-      const signatures = webhookSignature.split(" ");
-      const isValid = signatures.some(sig => {
-        const [, signature] = sig.split(",");
-        return signature === expectedSignature;
-      });
+    // Always verify webhook signature
+    const signedPayload = `${webhookId}.${webhookTimestamp}.${body}`;
+    const expectedSignature = createHmac("sha256", POLAR_WEBHOOK_SECRET)
+      .update(signedPayload)
+      .digest("base64");
 
-      if (!isValid) {
-        console.error("Invalid webhook signature");
-        return new Response("Invalid signature", { status: 401 });
-      }
+    const signatures = webhookSignature.split(" ");
+    const isValid = signatures.some(sig => {
+      const [, signature] = sig.split(",");
+      return signature === expectedSignature;
+    });
+
+    if (!isValid) {
+      console.error("Invalid webhook signature");
+      return new Response("Invalid signature", { status: 401 });
     }
 
     const event = JSON.parse(body);
