@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import { ThemeToggle } from '@/components/ThemeToggle';
+
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,7 +41,8 @@ export function Navbar() {
           </div>
 
           {/* Desktop Auth Buttons */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2">
+            <ThemeToggle />
             <Button variant="ghost" asChild>
               <Link to="/auth">Sign In</Link>
             </Button>
@@ -47,6 +50,7 @@ export function Navbar() {
               <Link to="/auth?mode=signup">Get Started</Link>
             </Button>
           </div>
+
 
           {/* Mobile Menu Button */}
           <button
