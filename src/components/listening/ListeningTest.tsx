@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { DiscussionPanel } from "@/components/practice/DiscussionPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -603,6 +604,7 @@ export function ListeningTest({
           </Button>
         </div>
       </div>
+      <DiscussionPanel questionId={question.id} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { DiscussionPanel } from "@/components/practice/DiscussionPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -281,6 +282,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
           </div>
         )}
       </Card>
+      <DiscussionPanel questionId={question.id} />
     </div>
   );
 }
