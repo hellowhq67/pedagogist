@@ -14,6 +14,8 @@ import { SpeakingQuestion, getTestTypeInfo } from "@/data/speakingQuestions";
 import { ScoreDisplay } from "./ScoreDisplay";
 import { CountdownTimer } from "./CountdownTimer";
 import { AudioWaveform } from "./AudioWaveform";
+import { DiscussionPanel } from "@/components/practice/DiscussionPanel";
+import { uploadRecording } from "@/lib/uploadRecording";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
@@ -123,6 +125,8 @@ export function SpeakingTest({
     }
   }, [audioBlob]);
 
+  const [discussionRefreshKey, setDiscussionRefreshKey] = useState(0);
+
   const processRecording = async () => {
     if (!audioBlob) return;
     setPhase("processing");
@@ -145,6 +149,22 @@ export function SpeakingTest({
       setPhase("results");
       setShowScoreModal(true);
       onComplete(result, transcription, recordingTime);
+
+      // Save recording to storage + DB for Board/Me playback
+      try {
+        await uploadRecording({
+          blob: audioBlob,
+          questionId: question.id,
+          questionType: question.type,
+          questionTitle: question.title,
+          durationSeconds: recordingTime,
+          transcript: transcription,
+          score: result,
+        });
+        setDiscussionRefreshKey((k) => k + 1);
+      } catch (uploadErr) {
+        console.error("Recording upload failed:", uploadErr);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to process recording");
       setPhase("prep");
@@ -471,6 +491,9 @@ export function SpeakingTest({
           onClose={() => setShowScoreModal(false)}
         />
       )}
+
+      {/* Community Discussion / Board / Me */}
+      <DiscussionPanel questionId={question.id} refreshKey={discussionRefreshKey} />
     </div>
   );
 }

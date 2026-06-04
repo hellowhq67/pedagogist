@@ -71,6 +71,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { CreditsBadge } from "@/components/dashboard/CreditsBadge";
 
 type SectionType = "speaking" | "writing" | "reading" | "listening";
 type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
@@ -128,6 +129,7 @@ export default function Dashboard() {
     activity,
     stats: realStats,
     subscription,
+    refresh,
   } = useUserData();
 
   // View state: 'overview' or 'practice'
@@ -183,6 +185,8 @@ export default function Dashboard() {
           durationSeconds: duration || 0,
         });
       }
+      // Refresh dashboard stats so the overview reflects this attempt
+      refresh();
     }
   };
 
@@ -355,6 +359,7 @@ export default function Dashboard() {
                   </>
                 )}
 
+                <CreditsBadge />
                 <span className="text-sm text-muted-foreground hidden sm:block">
                   {user.email}
                 </span>
@@ -622,24 +627,32 @@ export default function Dashboard() {
                 >
                   <h2 className="text-xl font-semibold mb-4">Quick Practice</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {modules.map((mod) => (
-                      <Card 
-                        key={mod.id} 
-                        className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 transition-all cursor-pointer group"
-                        onClick={() => {
-                          setSelectedSection(mod.id as SectionType);
-                          setCurrentView('practice');
-                        }}
-                      >
-                        <CardContent className="p-6">
-                          <div className={`w-12 h-12 rounded-xl ${mod.bgColor} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                            <mod.icon className={`w-6 h-6 ${mod.color}`} />
-                          </div>
-                          <h3 className="font-semibold text-foreground mb-1">{mod.title}</h3>
-                          <p className="text-sm text-muted-foreground">{mod.description}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    {modules.map((mod) => {
+                      const firstType: Record<string, AllTestTypes> = {
+                        speaking: "read-aloud",
+                        writing: "summarize-written-text",
+                        reading: "mc-single",
+                        listening: "highlight-correct-summary",
+                      };
+                      return (
+                        <Card
+                          key={mod.id}
+                          className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 transition-all cursor-pointer group"
+                          onClick={() => {
+                            setSelectedSection(mod.id as SectionType);
+                            handleSelectType(firstType[mod.id]);
+                          }}
+                        >
+                          <CardContent className="p-6">
+                            <div className={`w-12 h-12 rounded-xl ${mod.bgColor} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                              <mod.icon className={`w-6 h-6 ${mod.color}`} />
+                            </div>
+                            <h3 className="font-semibold text-foreground mb-1">{mod.title}</h3>
+                            <p className="text-sm text-muted-foreground">{mod.description}</p>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </motion.div>
               </div>

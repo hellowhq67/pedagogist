@@ -136,7 +136,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
       sevenDaysAgo.setHours(0, 0, 0, 0);
 
-      const [progressRes, subRes, attemptsRes] = await Promise.all([
+      const [progressRes, subRes, attemptsRes, allAttemptsRes] = await Promise.all([
         supabase.from("user_progress").select("*").eq("user_id", user.id),
         supabase.from("subscriptions").select("*").eq("user_id", user.id).maybeSingle(),
         supabase
@@ -145,6 +145,10 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
           .eq("user_id", user.id)
           .gte("created_at", sevenDaysAgo.toISOString())
           .order("created_at", { ascending: true }),
+        supabase
+          .from("speaking_attempts")
+          .select("created_at, overall_score, duration_seconds")
+          .eq("user_id", user.id),
       ]);
 
       const progress = (progressRes.data || []) as UserProgressRow[];
@@ -152,8 +156,9 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       setSubscription((subRes.data as SubscriptionRow) || null);
 
       const attempts = (attemptsRes.data || []) as SpeakingAttemptRow[];
+      const allAttempts = (allAttemptsRes.data || []) as Array<{ created_at: string; overall_score: number; duration_seconds: number | null }>;
 
-      // Weekly progress — aggregate average score per skill per day
+      // Weekly progress
       const week = buildEmptyWeek();
       const dayMap: Record<string, { speaking: number[]; writing: number[]; reading: number[]; listening: number[] }> = {};
       week.forEach((w) => {
@@ -174,49 +179,33 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       }));
       setWeeklyProgress(enrichedWeek);
 
-      // Skills radar — average per skill from user_progress
-      const skillAverage = (skill: string) => {
-        const rows = progress.filter((p) => p.skill_type === skill);
-        if (!rows.length) return 0;
-        return Math.round(
-          rows.reduce((s, r) => s + (r.average_score || 0), 0) / rows.length
-        );
-      };
-      setSkillsRadar([
-        { skill: "Speaking", score: skillAverage("speaking"), fullMark: 90 },
-        { skill: "Writing", score: skillAverage("writing"), fullMark: 90 },
-        { skill: "Reading", score: skillAverage("reading"), fullMark: 90 },
-        { skill: "Listening", score: skillAverage("listening"), fullMark: 90 },
-      ]);
-
-      // Activity — attempts per skill
-      const attemptsForSkill = (skill: string) =>
-        progress
-          .filter((p) => p.skill_type === skill)
-          .reduce((s, p) => s + (p.attempt_count || 0), 0);
-      setActivity([
-        { name: "Speaking", value: attemptsForSkill("speaking"), fill: SKILL_COLORS.Speaking },
-        { name: "Writing", value: attemptsForSkill("writing"), fill: SKILL_COLORS.Writing },
-        { name: "Reading", value: attemptsForSkill("reading"), fill: SKILL_COLORS.Reading },
-        { name: "Listening", value: attemptsForSkill("listening"), fill: SKILL_COLORS.Listening },
-      ]);
-
-      // Stats
-      const totalAttempts = progress.reduce((s, p) => s + (p.attempt_count || 0), 0);
-      const totalMs = progress.reduce((s, p) => s + (p.total_time_spent_ms || 0), 0);
-      const scoresOnly = progress.filter((p) => (p.average_score || 0) > 0);
-      const overallAvg = scoresOnly.length
-        ? Math.round(
-            scoresOnly.reduce((s, p) => s + (p.average_score || 0), 0) /
-              scoresOnly.length
-          )
+      // Skills radar
+      const speakingAvg = allAttempts.length
+        ? Math.round(allAttempts.reduce((s, a) => s + (a.overall_score || 0), 0) / allAttempts.length)
         : 0;
-      const attemptDates = attempts.map((a) => a.created_at.split("T")[0]);
+      setSkillsRadar([
+        { skill: "Speaking", score: speakingAvg, fullMark: 90 },
+        { skill: "Writing", score: 0, fullMark: 90 },
+        { skill: "Reading", score: 0, fullMark: 90 },
+        { skill: "Listening", score: 0, fullMark: 90 },
+      ]);
+
+      setActivity([
+        { name: "Speaking", value: allAttempts.length, fill: SKILL_COLORS.Speaking },
+        { name: "Writing", value: 0, fill: SKILL_COLORS.Writing },
+        { name: "Reading", value: 0, fill: SKILL_COLORS.Reading },
+        { name: "Listening", value: 0, fill: SKILL_COLORS.Listening },
+      ]);
+
+      // Stats — derive from speaking_attempts directly so dashboard reflects activity
+      const totalAttempts = allAttempts.length;
+      const totalSeconds = allAttempts.reduce((s, a) => s + (a.duration_seconds || 0), 0);
+      const allDates = allAttempts.map((a) => a.created_at.split("T")[0]);
       setStats({
         questionsDone: totalAttempts,
-        practiceHours: Math.round(totalMs / 3600000),
-        streakDays: computeStreak(attemptDates),
-        averageScore: overallAvg,
+        practiceHours: Math.round((totalSeconds / 3600) * 10) / 10,
+        streakDays: computeStreak(allDates),
+        averageScore: speakingAvg,
       });
     } catch (err) {
       console.error("UserDataContext fetch error:", err);
