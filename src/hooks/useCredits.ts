@@ -44,7 +44,7 @@ export function useCredits() {
 
   /** Atomically consume 1 credit on the server. Returns true if allowed. */
   const consume = useCallback(async (): Promise<boolean> => {
-    const { data, error } = await supabase.rpc("consume_scoring_credit");
+    const { data, error } = await (supabase as any).rpc("consume_scoring_credit");
     if (error) {
       toast.error("Could not check credit balance");
       return false;

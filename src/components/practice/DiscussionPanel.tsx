@@ -72,21 +72,19 @@ export function DiscussionPanel({ questionId, refreshKey = 0 }: Props) {
   const [posting, setPosting] = useState(false);
 
   const load = async () => {
+    const sb = supabase as any;
     const [comRes, recRes, mineRes] = await Promise.all([
-      supabase
-        .from("question_discussions")
+      sb.from("question_discussions")
         .select("id, user_id, body, created_at")
         .eq("question_id", questionId)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("speaking_recordings")
+      sb.from("speaking_recordings")
         .select("id, user_id, audio_path, duration_seconds, scaled_score, created_at")
         .eq("question_id", questionId)
         .order("scaled_score", { ascending: false, nullsFirst: false })
         .limit(20),
       user
-        ? supabase
-            .from("speaking_recordings")
+        ? sb.from("speaking_recordings")
             .select("id, user_id, audio_path, duration_seconds, scaled_score, created_at")
             .eq("question_id", questionId)
             .eq("user_id", user.id)
@@ -103,7 +101,7 @@ export function DiscussionPanel({ questionId, refreshKey = 0 }: Props) {
   const submit = async () => {
     if (!user || !body.trim()) return;
     setPosting(true);
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("question_discussions")
       .insert({ user_id: user.id, question_id: questionId, body: body.trim() });
     setPosting(false);

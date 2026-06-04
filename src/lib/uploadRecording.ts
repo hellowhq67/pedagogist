@@ -26,7 +26,7 @@ export async function uploadRecording(args: UploadRecordingArgs) {
 
   const scaled = args.score?.overallScore != null ? toPteScale(args.score.overallScore) : null;
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("speaking_recordings")
     .insert({
       user_id: user.id,
