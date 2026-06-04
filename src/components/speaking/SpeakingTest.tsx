@@ -14,6 +14,8 @@ import { SpeakingQuestion, getTestTypeInfo } from "@/data/speakingQuestions";
 import { ScoreDisplay } from "./ScoreDisplay";
 import { CountdownTimer } from "./CountdownTimer";
 import { AudioWaveform } from "./AudioWaveform";
+import { DiscussionPanel } from "@/components/practice/DiscussionPanel";
+import { uploadRecording } from "@/lib/uploadRecording";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
