@@ -1,53 +1,96 @@
+# Pre-Phase 2: Dashboard, Credits, Storage & Discussion Board
 
-You picked all four scope groups plus AI content generator and a rebuild of Summarise Group Discussion. That's ~3 weeks of work compressed — I'll split it into 5 sequential phases, ~one chat turn each, so each ships clean and testable.
+Before moving to Phase 2 (Policy + Settings), tackle this batch of dashboard/practice fixes.
 
-## Phase 1 — Foundation (THIS turn after approval)
-- Enable Google sign-in (Lovable Cloud managed) on `/auth`, keep email/password
-- New transparent SVG-style logo (generated, premium quality)
-- Light/Dark/System theme switch in sidebar header + landing navbar (default Dark)
-- Home page upgrades:
-  - New hero with kinetic gradient background
-  - Add: Video demo section (lazy-loaded `<video>` poster + play overlay)
-  - Add: Testimonials carousel, Stats band, FAQ accordion, Logo strip ("trusted by")
-  - Refine spacing/typography for enterprise feel
-- Seed default admin: email `admin@pedagogistspte.com`, password `Admin@PTE2026` (you should change after first login)
+## 1. Dashboard Overview — Real Progress
 
-## Phase 2 — Policy + User Settings
-- `/privacy`, `/terms`, `/refund`, `/cookie` static pages with shared `PolicyLayout`
-- `/settings` page: profile (display name, avatar upload via Storage), password change, theme, notifications toggle, danger zone (delete account)
-- Add to sidebar footer + landing Footer
+Currently `Practice Summary` and `Target Score` show zeros because nothing reads from the DB. Will wire them to live data:
 
-## Phase 3 — Admin Panel + Bulk Upload + Support
-- `/admin` (gated by `has_role(auth.uid(),'admin')`):
-  - Overview KPIs (users, subs, revenue, tickets)
-  - Users table (search, role toggle)
-  - Questions manager
-  - **Bulk question upload**: drag-drop CSV/JSON card, schema preview, validation, insert
-  - Support tickets inbox
-- New tables: `support_tickets`, `support_messages` with RLS (user can manage own; admin can manage all)
-- User-side `/support` page to create tickets + thread view
+- **Today Practiced**: count of `submissions` (or `scores`) where `created_at::date = today`.
+- **Total Practiced**: total submissions for the user.
+- **Practice Days**: `count(distinct date)` of submission dates.
+- **Target Score band**: average score per skill (Listening / Reading / Speaking / Writing) from `scores` table over last 30 days.
+- **Exam in**: read from `exam_goals.target_date`, show countdown.
 
-## Phase 4 — Checkout + Multi-currency (display)
-- Currency selector (USD / BDT) in navbar, persisted in localStorage + `UserDataContext`
-- Live FX (cached daily via edge function `fx-rates`)
-- Pricing cards show converted BDT alongside USD (billing stays USD via Polar)
-- Polish Polar checkout flow, success/cancel pages
+Refresh on mount + after any test completes (invalidate via `UserDataContext`).
 
-## Phase 5 — AI Content Generator + GD Rebuild
-- `/admin/generate` content generator: pick question type → Gemini produces N questions → preview → bulk insert
-- Rebuild Summarise Group Discussion speaking module:
-  - Real PTE format: 3-speaker discussion, 60–90s audio, 10s prep, 40s response
-  - Generate 5 sample discussions (script + Gemini TTS audio files via `text-to-speech` function, stored in `discussion-audio` bucket)
-  - New `GroupDiscussionTest` component with multi-speaker waveform display
+## 2. Credits System in Header
 
-## Technical details
-- Theme: `ThemeProvider` already exists — extend to support `system` mode and persist to localStorage; add `<ThemeToggle />` using `next-themes`-style API (no extra dep, plain context)
-- Google auth: call `supabase--configure_social_auth({providers:["google"]})` and use `lovable.auth.signInWithOAuth("google")`
-- Admin seed: via `auth.admin.createUser` in a one-shot edge function, then insert into `user_roles`
-- Bulk upload: client parses CSV with `papaparse`, validates via Zod, batches insert (admin RLS)
-- Support tickets: new tables with `status` enum (open/pending/closed), realtime subscription for live updates
-- FX: free `exchangerate.host` API, cached in a `fx_rates` table updated by daily cron edge function
-- GD audio: generated once via `text-to-speech` edge function with 3 distinct voices, uploaded to public storage bucket, URLs stored in `questions.audio_url`
+- Free user starts with **5 scoring credits**.
+- 1 credit = 1 AI score check (after finishing a single practice item *and* tapping "Check score with AI").
+- Header pill next to avatar: `⚡ 5 credits` (matches screenshot style).
+- Tap → opens dropdown: balance, "Upgrade for more", link to pricing.
+- Server-side: extend `subscriptions.credits_remaining` usage; new RPC `consume_scoring_credit()` returns `{ ok, remaining }` and is called from every scoring edge function BEFORE doing the AI call. If `ok=false` → toast "Out of credits — upgrade to continue".
+- Realtime subscription on `subscriptions` row so header updates instantly.
 
-## What I need from you to start
-Approve this plan and I'll execute **Phase 1** immediately. After Phase 1 ships, just reply "next" and I'll do Phase 2, and so on.
+## 3. Quick Practice Card Navigation
+
+On Dashboard, the **PTE Practice / Speaking / Listening / Reading / Writing / Mock Tests / Templates** cards currently do nothing. Wire each to the first question of that section:
+
+- Speaking → `/practice/speaking/0`
+- Listening → `/practice/listening/0`
+- Reading → `/practice/reading/0`
+- Writing → `/practice/writing/0`
+- Mock Tests → `/mock-tests`
+- Templates → `/templates` (placeholder page if missing)
+
+## 4. Save Recorded Voice to Storage
+
+New private bucket `practice-recordings` (RLS: user can read/write only their own `user_id/...` path).
+
+After `useAudioRecorder` stops:
+1. Upload blob to `practice-recordings/{user_id}/{question_id}/{timestamp}.webm`.
+2. Insert row in new table `speaking_recordings`:
+   - `user_id`, `question_id`, `question_type`, `question_title`, `audio_path`, `duration_seconds`, `score` (jsonb), `transcript`.
+3. Return signed URL for playback.
+
+## 5. Practice Test Page — Discussion / Board / Me Tabs
+
+Add the bottom panel from the screenshot to **every** practice test page (Speaking, Reading, Writing, Listening):
+
+```
+Discussion | Board | Me
+```
+
+- **Discussion**: community comments on this question (new `question_discussions` table — `user_id`, `question_id`, `body`, `created_at`). Each post can have an attached recording (for speaking). Score badge shown.
+- **Board**: leaderboard for this question — top scores across all users (read-only view).
+- **Me**: current user's previous attempts on this question — list of audio players with date + score, replayable.
+
+Cards show: avatar, name, date, audio `<audio controls>`, `Score Info XX/90` badge, share icon.
+
+## 6. Marks Display
+
+Show scaled `XX/90` PTE-style mark on each recording card and inside the score modal (currently shows raw 0–100). Conversion uses `get_max_score_for_question_type` already in DB → scaled to 90.
+
+---
+
+## Technical breakdown
+
+**New tables (one migration):**
+- `speaking_recordings` (user_id, question_id, question_type, question_title, audio_path, duration_seconds, transcript, score jsonb, scaled_score int, created_at) — RLS: owner full; SELECT also allowed to authenticated for Board/Discussion via secure view `public_recordings` that exposes only name + audio_path + scaled_score.
+- `question_discussions` (user_id, question_id, body, recording_id nullable, created_at) — RLS: anyone authenticated reads, owner writes/deletes.
+
+**New storage bucket:** `practice-recordings` (private) + RLS policies on `storage.objects` scoping `{user_id}/...`.
+
+**New RPC:**
+```sql
+consume_scoring_credit() returns (ok bool, remaining int)
+```
+decrements `subscriptions.credits_remaining` atomically; returns `(false, 0)` if zero.
+
+**Edge function updates:** `score-speaking`, `score-writing`, `score-pte-agentic`, `score-mocktest-ai` all call `consume_scoring_credit` first.
+
+**Frontend additions:**
+- `src/hooks/useCredits.ts` — realtime subscription + consume helper.
+- `src/components/dashboard/CreditsBadge.tsx` — header pill.
+- `src/components/practice/DiscussionPanel.tsx` — 3-tab panel (Discussion/Board/Me) reused in all 4 test components.
+- `src/lib/uploadRecording.ts` — uploads blob, inserts row, returns id+url.
+- Update `Dashboard.tsx` to fetch real stats from `submissions`/`scores`/`exam_goals`.
+- Wire card `onClick` navigation.
+- Mount `<DiscussionPanel questionId=… questionType=…/>` at the bottom of `SpeakingTest`, `ReadingTest`, `WritingTest`, `ListeningTest`.
+
+**Score scaling helper:** `src/lib/pteScale.ts` → `toPteScale(raw, type)` returns 0–90.
+
+---
+
+Reply **go** to execute, or tell me what to drop/add.
