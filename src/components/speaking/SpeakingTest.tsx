@@ -125,6 +125,8 @@ export function SpeakingTest({
     }
   }, [audioBlob]);
 
+  const [discussionRefreshKey, setDiscussionRefreshKey] = useState(0);
+
   const processRecording = async () => {
     if (!audioBlob) return;
     setPhase("processing");
@@ -147,6 +149,22 @@ export function SpeakingTest({
       setPhase("results");
       setShowScoreModal(true);
       onComplete(result, transcription, recordingTime);
+
+      // Save recording to storage + DB for Board/Me playback
+      try {
+        await uploadRecording({
+          blob: audioBlob,
+          questionId: question.id,
+          questionType: question.type,
+          questionTitle: question.title,
+          durationSeconds: recordingTime,
+          transcript: transcription,
+          score: result,
+        });
+        setDiscussionRefreshKey((k) => k + 1);
+      } catch (uploadErr) {
+        console.error("Recording upload failed:", uploadErr);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to process recording");
       setPhase("prep");
