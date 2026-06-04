@@ -491,6 +491,9 @@ export function SpeakingTest({
           onClose={() => setShowScoreModal(false)}
         />
       )}
+
+      {/* Community Discussion / Board / Me */}
+      <DiscussionPanel questionId={question.id} refreshKey={discussionRefreshKey} />
     </div>
   );
 }
