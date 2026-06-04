@@ -71,6 +71,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { CreditsBadge } from "@/components/dashboard/CreditsBadge";
 
 type SectionType = "speaking" | "writing" | "reading" | "listening";
 type AllTestTypes = TestType | WritingTestType | ReadingTestType | ListeningTestType;
@@ -128,6 +129,7 @@ export default function Dashboard() {
     activity,
     stats: realStats,
     subscription,
+    refresh,
   } = useUserData();
 
   // View state: 'overview' or 'practice'
@@ -183,6 +185,8 @@ export default function Dashboard() {
           durationSeconds: duration || 0,
         });
       }
+      // Refresh dashboard stats so the overview reflects this attempt
+      refresh();
     }
   };
 
@@ -355,6 +359,7 @@ export default function Dashboard() {
                   </>
                 )}
 
+                <CreditsBadge />
                 <span className="text-sm text-muted-foreground hidden sm:block">
                   {user.email}
                 </span>
