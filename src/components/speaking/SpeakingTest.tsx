@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
+import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
+import { MicrophonePermissionDialog } from "./MicrophonePermissionDialog";
 import { transcribeAudio, scoreSpeaking, ScoreResult } from "@/lib/scoring";
 import { SpeakingQuestion, getTestTypeInfo } from "@/data/speakingQuestions";
 import { ScoreDisplay } from "./ScoreDisplay";
