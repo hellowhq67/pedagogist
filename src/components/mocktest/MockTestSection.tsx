@@ -16,6 +16,8 @@ import {
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
+import { useMicrophonePermission } from "@/hooks/useMicrophonePermission";
+import { MicrophonePermissionDialog } from "@/components/speaking/MicrophonePermissionDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
