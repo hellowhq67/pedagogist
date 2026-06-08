@@ -99,6 +99,11 @@ export function MockTestSection({
     stopRecording, 
     resetRecording 
   } = useAudioRecorder(timeLimit);
+  const {
+    permissionState: micPermission,
+    requestPermission: requestMicPermission,
+    error: micError,
+  } = useMicrophonePermission(true);
 
   // Reset state when question changes
   useEffect(() => {
