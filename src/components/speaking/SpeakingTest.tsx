@@ -330,11 +330,16 @@ export function SpeakingTest({
         )}
 
         {/* Microphone Permission Warning */}
-        {phase === "prep" && (
-          <div className="mt-4 p-4 bg-red-100 dark:bg-red-900/30 rounded-lg text-center text-red-600 dark:text-red-400">
-            <p className="font-medium">Microphone permission is not granted.</p>
-            <Button variant="outline" size="sm" className="mt-2 border-red-300 text-red-600 hover:bg-red-50">
-              Help
+        {micPermission === "denied" && phase !== "results" && (
+          <div className="mt-4 p-4 bg-destructive/10 rounded-lg text-center border border-destructive/20">
+            <p className="font-medium text-destructive">Microphone access is required for speaking tests.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 border-destructive text-destructive hover:bg-destructive/10"
+              onClick={requestMicPermission}
+            >
+              Enable Microphone
             </Button>
           </div>
         )}
