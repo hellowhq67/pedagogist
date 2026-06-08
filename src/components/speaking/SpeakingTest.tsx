@@ -67,6 +67,11 @@ export function SpeakingTest({
     resetRecording, 
     error 
   } = useAudioRecorder(question.recordTime);
+  const {
+    permissionState: micPermission,
+    requestPermission: requestMicPermission,
+    error: micError,
+  } = useMicrophonePermission(true);
 
   const typeInfo = getTestTypeInfo(question.type);
 
