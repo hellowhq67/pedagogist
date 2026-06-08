@@ -222,6 +222,11 @@ export function SpeakingTest({
 
   return (
     <div className="space-y-4 animate-fade-slide-up">
+      <MicrophonePermissionDialog
+        permissionState={micPermission}
+        onRequestPermission={requestMicPermission}
+        error={micError}
+      />
       {/* Test Type Header */}
       <Card className="p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20 border-orange-200 dark:border-orange-800">
         <div className="flex items-start gap-3">
