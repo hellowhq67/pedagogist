@@ -531,7 +531,7 @@ export function ReadingTest({
           </Button>
         </div>
       </div>
-      <DiscussionPanel questionId={question.id} />
+      <DiscussionPanel questionId={question.id} testType="reading" />
     </div>
   );
 }

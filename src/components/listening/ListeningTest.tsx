@@ -604,7 +604,7 @@ export function ListeningTest({
           </Button>
         </div>
       </div>
-      <DiscussionPanel questionId={question.id} />
+      <DiscussionPanel questionId={question.id} testType="listening" />
     </div>
   );
 }
