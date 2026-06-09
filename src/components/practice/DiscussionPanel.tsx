@@ -6,97 +6,124 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { getSignedAudioUrl } from "@/lib/uploadRecording";
-import { MessageCircle, Trophy, User, Share2, Send } from "lucide-react";
+import { MessageCircle, Trophy, User, Send } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
-interface Recording {
+interface Attempt {
   id: string;
   user_id: string;
-  audio_path: string;
-  duration_seconds: number;
-  scaled_score: number | null;
+  audio_url: string | null;
+  spoken_text: string | null;
+  duration_seconds: number | null;
+  overall_score: number;
+  test_type: string;
   created_at: string;
+  display_name?: string;
 }
+
 interface Discussion {
   id: string;
   user_id: string;
   body: string;
   created_at: string;
+  display_name?: string;
 }
 
 interface Props {
   questionId: string;
+  /** speaking | writing | reading | listening — controls whether audio is shown */
+  testType?: string;
   refreshKey?: number;
 }
 
-function AudioPlayer({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => { getSignedAudioUrl(path).then(setUrl); }, [path]);
-  if (!url) return <div className="h-8 w-full bg-muted/40 rounded animate-pulse" />;
-  return <audio controls src={url} className="h-8 w-full" />;
+function initialsFrom(name?: string) {
+  if (!name) return "U";
+  return name.trim().slice(0, 2).toUpperCase();
 }
 
-function RecordingCard({ rec, name }: { rec: Recording; name: string }) {
-  const initials = name.slice(0, 2).toUpperCase();
+function AttemptCard({ a, isMe, showAudio }: { a: Attempt; isMe: boolean; showAudio: boolean }) {
+  const name = isMe ? "You" : a.display_name || "Student";
   return (
     <div className="border border-border/50 rounded-lg p-3 bg-card/30">
       <div className="flex items-center gap-2 mb-2">
         <Avatar className="h-7 w-7">
-          <AvatarFallback className="text-xs bg-primary/10 text-primary">{initials}</AvatarFallback>
+          <AvatarFallback className="text-xs bg-primary/10 text-primary">
+            {initialsFrom(name)}
+          </AvatarFallback>
         </Avatar>
         <span className="font-medium text-sm">{name}</span>
         <span className="text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(rec.created_at), { addSuffix: true })}
+          {formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}
         </span>
-        <Share2 className="ml-auto h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground" />
-      </div>
-      <AudioPlayer path={rec.audio_path} />
-      {rec.scaled_score != null && (
-        <Badge variant="outline" className="mt-2 text-primary border-primary/40">
-          Score Info {rec.scaled_score}/90
+        <Badge variant="outline" className="ml-auto text-primary border-primary/40">
+          {a.overall_score}/90
         </Badge>
+      </div>
+      {showAudio && a.audio_url ? (
+        <audio controls src={a.audio_url} className="h-8 w-full" />
+      ) : a.spoken_text ? (
+        <p className="text-sm text-muted-foreground line-clamp-3">{a.spoken_text}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">Submission recorded</p>
+      )}
+      {a.duration_seconds ? (
+        <p className="text-[11px] text-muted-foreground mt-1">
+          {a.test_type} · {a.duration_seconds}s
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground mt-1">{a.test_type}</p>
       )}
     </div>
   );
 }
 
-export function DiscussionPanel({ questionId, refreshKey = 0 }: Props) {
+export function DiscussionPanel({ questionId, testType = "speaking", refreshKey = 0 }: Props) {
   const { user } = useAuth();
   const [tab, setTab] = useState("discussion");
   const [comments, setComments] = useState<Discussion[]>([]);
-  const [allRecordings, setAllRecordings] = useState<Recording[]>([]);
-  const [myRecordings, setMyRecordings] = useState<Recording[]>([]);
+  const [board, setBoard] = useState<Attempt[]>([]);
+  const [mine, setMine] = useState<Attempt[]>([]);
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
+  const showAudio = testType === "speaking";
+
+  const hydrateNames = async <T extends { user_id: string }>(rows: T[]): Promise<(T & { display_name?: string })[]> => {
+    const ids = Array.from(new Set(rows.map((r) => r.user_id)));
+    if (ids.length === 0) return rows;
+    const { data } = await supabase.from("profiles").select("user_id, display_name").in("user_id", ids);
+    const map = new Map((data || []).map((p: any) => [p.user_id, p.display_name as string]));
+    return rows.map((r) => ({ ...r, display_name: map.get(r.user_id) }));
+  };
 
   const load = async () => {
-    const sb = supabase as any;
-    const [comRes, recRes, mineRes] = await Promise.all([
-      sb.from("question_discussions")
+    const [comRes, boardRes, mineRes] = await Promise.all([
+      (supabase as any)
+        .from("question_discussions")
         .select("id, user_id, body, created_at")
         .eq("question_id", questionId)
         .order("created_at", { ascending: false }),
-      sb.from("speaking_recordings")
-        .select("id, user_id, audio_path, duration_seconds, scaled_score, created_at")
+      supabase
+        .from("speaking_attempts")
+        .select("id, user_id, audio_url, spoken_text, duration_seconds, overall_score, test_type, created_at")
         .eq("question_id", questionId)
-        .order("scaled_score", { ascending: false, nullsFirst: false })
+        .order("overall_score", { ascending: false })
         .limit(20),
       user
-        ? sb.from("speaking_recordings")
-            .select("id, user_id, audio_path, duration_seconds, scaled_score, created_at")
+        ? supabase
+            .from("speaking_attempts")
+            .select("id, user_id, audio_url, spoken_text, duration_seconds, overall_score, test_type, created_at")
             .eq("question_id", questionId)
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as any[] }),
     ]);
-    setComments((comRes.data as Discussion[]) || []);
-    setAllRecordings((recRes.data as Recording[]) || []);
-    setMyRecordings((mineRes.data as Recording[]) || []);
+    setComments(await hydrateNames((comRes.data as Discussion[]) || []));
+    setBoard(await hydrateNames((boardRes.data as Attempt[]) || []));
+    setMine(((mineRes.data as Attempt[]) || []).map((r) => ({ ...r, display_name: "You" })));
   };
 
-  useEffect(() => { load(); }, [questionId, refreshKey, user?.id]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [questionId, refreshKey, user?.id]);
 
   const submit = async () => {
     if (!user || !body.trim()) return;
@@ -146,7 +173,14 @@ export function DiscussionPanel({ questionId, refreshKey = 0 }: Props) {
             comments.map((c) => (
               <div key={c.id} className="border border-border/50 rounded-lg p-3 bg-card/30">
                 <div className="flex items-center gap-2 mb-1">
-                  <Avatar className="h-6 w-6"><AvatarFallback className="text-xs">U</AvatarFallback></Avatar>
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-xs">
+                      {initialsFrom(c.user_id === user?.id ? "You" : c.display_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-xs font-medium">
+                    {c.user_id === user?.id ? "You" : c.display_name || "Student"}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                   </span>
@@ -158,20 +192,20 @@ export function DiscussionPanel({ questionId, refreshKey = 0 }: Props) {
         </TabsContent>
 
         <TabsContent value="board" className="space-y-3 mt-4">
-          {allRecordings.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No recordings yet. Be the first to set a score!</p>
+          {board.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No submissions yet. Be the first to set a score!</p>
           ) : (
-            allRecordings.map((r) => (
-              <RecordingCard key={r.id} rec={r} name={r.user_id === user?.id ? "You" : "Student"} />
+            board.map((a) => (
+              <AttemptCard key={a.id} a={a} isMe={a.user_id === user?.id} showAudio={showAudio} />
             ))
           )}
         </TabsContent>
 
         <TabsContent value="me" className="space-y-3 mt-4">
-          {myRecordings.length === 0 ? (
+          {mine.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Your attempts on this question will appear here.</p>
           ) : (
-            myRecordings.map((r) => <RecordingCard key={r.id} rec={r} name="You" />)
+            mine.map((a) => <AttemptCard key={a.id} a={a} isMe showAudio={showAudio} />)
           )}
         </TabsContent>
       </Tabs>
