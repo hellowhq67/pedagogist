@@ -510,7 +510,7 @@ export function SpeakingTest({
       )}
 
       {/* Community Discussion / Board / Me */}
-      <DiscussionPanel questionId={question.id} refreshKey={discussionRefreshKey} />
+      <DiscussionPanel questionId={question.id} testType="speaking" refreshKey={discussionRefreshKey} />
     </div>
   );
 }

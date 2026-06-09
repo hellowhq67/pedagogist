@@ -282,7 +282,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
           </div>
         )}
       </Card>
-      <DiscussionPanel questionId={question.id} />
+      <DiscussionPanel questionId={question.id} testType="writing" />
     </div>
   );
 }
