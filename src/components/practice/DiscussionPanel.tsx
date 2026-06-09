@@ -88,27 +88,10 @@ export function DiscussionPanel({ questionId, testType = "speaking", refreshKey 
   const [posting, setPosting] = useState(false);
   const showAudio = testType === "speaking";
 
-  const hydrateNames = async <T extends { user_id: string }>(rows: T[]): Promise<(T & { display_name?: string })[]> => {
-    const ids = Array.from(new Set(rows.map((r) => r.user_id)));
-    if (ids.length === 0) return rows;
-    const { data } = await supabase.from("profiles").select("user_id, display_name").in("user_id", ids);
-    const map = new Map((data || []).map((p: any) => [p.user_id, p.display_name as string]));
-    return rows.map((r) => ({ ...r, display_name: map.get(r.user_id) }));
-  };
-
   const load = async () => {
     const [comRes, boardRes, mineRes] = await Promise.all([
-      (supabase as any)
-        .from("question_discussions")
-        .select("id, user_id, body, created_at")
-        .eq("question_id", questionId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("speaking_attempts")
-        .select("id, user_id, audio_url, spoken_text, duration_seconds, overall_score, test_type, created_at")
-        .eq("question_id", questionId)
-        .order("overall_score", { ascending: false })
-        .limit(20),
+      (supabase as any).rpc("get_question_discussions", { p_question_id: questionId }),
+      (supabase as any).rpc("get_question_leaderboard", { p_question_id: questionId, p_limit: 20 }),
       user
         ? supabase
             .from("speaking_attempts")
@@ -118,10 +101,31 @@ export function DiscussionPanel({ questionId, testType = "speaking", refreshKey 
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as any[] }),
     ]);
-    setComments(await hydrateNames((comRes.data as Discussion[]) || []));
-    setBoard(await hydrateNames((boardRes.data as Attempt[]) || []));
+    setComments(
+      ((comRes.data as any[]) || []).map((c) => ({
+        id: c.id,
+        user_id: c.user_id,
+        body: c.body,
+        created_at: c.created_at,
+        display_name: c.display_name,
+      }))
+    );
+    setBoard(
+      ((boardRes.data as any[]) || []).map((b) => ({
+        id: b.attempt_id,
+        user_id: b.user_id,
+        audio_url: b.audio_url,
+        spoken_text: null,
+        duration_seconds: b.duration_seconds,
+        overall_score: b.overall_score,
+        test_type: b.test_type,
+        created_at: b.created_at,
+        display_name: b.display_name,
+      }))
+    );
     setMine(((mineRes.data as Attempt[]) || []).map((r) => ({ ...r, display_name: "You" })));
   };
+
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [questionId, refreshKey, user?.id]);
 
