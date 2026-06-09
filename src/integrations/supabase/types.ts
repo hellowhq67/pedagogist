@@ -631,6 +631,31 @@ export type Database = {
         Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
         Returns: number
       }
+      get_question_discussions: {
+        Args: { p_question_id: string }
+        Returns: {
+          body: string
+          created_at: string
+          display_name: string
+          id: string
+          is_me: boolean
+          user_id: string
+        }[]
+      }
+      get_question_leaderboard: {
+        Args: { p_limit?: number; p_question_id: string }
+        Returns: {
+          attempt_id: string
+          audio_url: string
+          created_at: string
+          display_name: string
+          duration_seconds: number
+          is_me: boolean
+          overall_score: number
+          test_type: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
