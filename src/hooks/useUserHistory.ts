@@ -38,6 +38,7 @@ interface SaveAttemptParams {
   spokenText: string;
   score: ScoreResult;
   durationSeconds?: number;
+  audioUrl?: string | null;
 }
 
 export function useUserHistory(): UseUserHistoryReturn {
@@ -106,6 +107,7 @@ export function useUserHistory(): UseUserHistoryReturn {
     spokenText,
     score,
     durationSeconds,
+    audioUrl,
   }: SaveAttemptParams) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -128,6 +130,7 @@ export function useUserHistory(): UseUserHistoryReturn {
           feedback: score.feedback,
           detailed_analysis: score.detailedAnalysis,
           duration_seconds: durationSeconds,
+          audio_url: audioUrl ?? null,
         });
 
       if (insertError) {

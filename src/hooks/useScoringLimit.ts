@@ -2,16 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Single source of truth for scoring credits — reads from `subscriptions.credits_remaining`
- * so the dashboard header and the in-test counter never disagree.
- * Decrement happens server-side when a score is finalised (or locally as a fallback).
+ * Single source of truth for scoring credits — reads `subscriptions.credits_remaining`
+ * and decrements via the server-side `consume_practice_credit` RPC (atomic, rate-limited).
  */
 interface UseScoringLimitReturn {
   remainingAttempts: number;
   isLoading: boolean;
   canScore: boolean;
+  /** Atomically consume one credit. Returns true if the attempt is allowed. */
   incrementUsage: () => Promise<boolean>;
-  resetDate: string | null;
+  refresh: () => Promise<void>;
 }
 
 export function useScoringLimit(): UseScoringLimitReturn {
@@ -22,10 +22,7 @@ export function useScoringLimit(): UseScoringLimitReturn {
     setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setRemainingAttempts(0);
-        return;
-      }
+      if (!user) { setRemainingAttempts(0); return; }
       const { data } = await supabase
         .from("subscriptions")
         .select("credits_remaining")
@@ -61,27 +58,14 @@ export function useScoringLimit(): UseScoringLimitReturn {
   }, []);
 
   const incrementUsage = useCallback(async (): Promise<boolean> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
-    // Optimistic
-    const { data: cur } = await supabase
-      .from("subscriptions")
-      .select("credits_remaining")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const current = cur?.credits_remaining ?? 0;
-    if (current <= 0) {
+    const { data, error } = await (supabase as any).rpc("consume_practice_credit");
+    if (error) return false;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row?.ok) {
       setRemainingAttempts(0);
       return false;
     }
-    const next = current - 1;
-    const { error } = await supabase
-      .from("subscriptions")
-      .update({ credits_remaining: next })
-      .eq("user_id", user.id);
-    if (error) return false;
-    setRemainingAttempts(next);
+    setRemainingAttempts(row.remaining ?? 0);
     return true;
   }, []);
 
@@ -90,6 +74,6 @@ export function useScoringLimit(): UseScoringLimitReturn {
     isLoading,
     canScore: remainingAttempts > 0,
     incrementUsage,
-    resetDate: null,
+    refresh: fetchCredits,
   };
 }
