@@ -800,6 +800,8 @@ export default function Dashboard() {
                       onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
                     />
                   )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
