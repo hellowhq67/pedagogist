@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MessageCircle, Trophy, User, Send } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { getSignedAudioUrl } from "@/lib/uploadRecording";
 
 interface Attempt {
   id: string;
@@ -110,20 +111,32 @@ export function DiscussionPanel({ questionId, testType = "speaking", refreshKey 
         display_name: c.display_name,
       }))
     );
-    setBoard(
-      ((boardRes.data as any[]) || []).map((b) => ({
-        id: b.attempt_id,
-        user_id: b.user_id,
-        audio_url: b.audio_url,
-        spoken_text: null,
-        duration_seconds: b.duration_seconds,
-        overall_score: b.overall_score,
-        test_type: b.test_type,
-        created_at: b.created_at,
-        display_name: b.display_name,
-      }))
-    );
-    setMine(((mineRes.data as Attempt[]) || []).map((r) => ({ ...r, display_name: "You" })));
+
+    const resolveAudio = async (rows: Attempt[]): Promise<Attempt[]> => {
+      if (!showAudio) return rows;
+      return Promise.all(
+        rows.map(async (r) => ({
+          ...r,
+          audio_url: r.audio_url ? await getSignedAudioUrl(r.audio_url) : null,
+        }))
+      );
+    };
+
+    const boardRows: Attempt[] = ((boardRes.data as any[]) || []).map((b) => ({
+      id: b.attempt_id,
+      user_id: b.user_id,
+      audio_url: b.audio_url,
+      spoken_text: null,
+      duration_seconds: b.duration_seconds,
+      overall_score: b.overall_score,
+      test_type: b.test_type,
+      created_at: b.created_at,
+      display_name: b.display_name,
+    }));
+    setBoard(await resolveAudio(boardRows));
+
+    const mineRows: Attempt[] = ((mineRes.data as Attempt[]) || []).map((r) => ({ ...r, display_name: "You" }));
+    setMine(await resolveAudio(mineRows));
   };
 
 

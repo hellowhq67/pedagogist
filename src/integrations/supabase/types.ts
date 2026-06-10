@@ -627,6 +627,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_practice_credit: {
+        Args: never
+        Returns: {
+          ok: boolean
+          remaining: number
+          tier: string
+        }[]
+      }
       get_max_score_for_question_type: {
         Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
         Returns: number

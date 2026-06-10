@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, Bookmark, ChevronDown, List, BarChart2, X } from "lucide-react";
+import { Search, Bookmark, ChevronDown, List, BarChart2, X, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SpeakingQuestion, TestType, getTestTypeInfo } from "@/data/speakingQuestions";
 import { WritingQuestion, WritingTestType, getWritingTestTypeInfo } from "@/data/writingQuestions";
@@ -27,7 +27,10 @@ interface QuestionListPanelProps {
   questions: AllQuestions[];
   currentQuestionIndex: number;
   completedQuestions?: Set<string>;
+  /** Index from which questions are locked (free tier). Set to undefined to unlock all. */
+  lockedFromIndex?: number;
   onSelectQuestion: (index: number) => void;
+  onSelectLocked?: () => void;
   onClose?: () => void;
 }
 
@@ -37,7 +40,9 @@ export function QuestionListPanel({
   questions,
   currentQuestionIndex,
   completedQuestions = new Set(),
+  lockedFromIndex,
   onSelectQuestion,
+  onSelectLocked,
   onClose,
 }: QuestionListPanelProps) {
   const [search, setSearch] = useState("");
@@ -247,11 +252,18 @@ export function QuestionListPanel({
             return (
               <button
                 key={question.id}
-                onClick={() => onSelectQuestion(originalIndex)}
+                onClick={() => {
+                  if (lockedFromIndex !== undefined && originalIndex >= lockedFromIndex) {
+                    onSelectLocked?.();
+                    return;
+                  }
+                  onSelectQuestion(originalIndex);
+                }}
                 className={cn(
                   "w-full px-4 py-3 text-left transition-all flex items-center gap-4",
                   "hover:bg-muted/50",
-                  isActive && "bg-primary/5 border-l-4 border-l-primary"
+                  isActive && "bg-primary/5 border-l-4 border-l-primary",
+                  lockedFromIndex !== undefined && originalIndex >= lockedFromIndex && "opacity-60"
                 )}
               >
                 {/* Question Number */}
@@ -265,6 +277,12 @@ export function QuestionListPanel({
                     {(question as any).title || `Question ${originalIndex + 1}`}
                   </p>
                 </div>
+
+                {lockedFromIndex !== undefined && originalIndex >= lockedFromIndex && (
+                  <Badge variant="outline" className="text-amber-500 border-amber-500/40 gap-1">
+                    <Lock className="h-3 w-3" /> Pro
+                  </Badge>
+                )}
 
                 {/* Difficulty Badge */}
                 <Badge

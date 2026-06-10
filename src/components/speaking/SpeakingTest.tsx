@@ -26,7 +26,7 @@ interface SpeakingTestProps {
   question: SpeakingQuestion;
   questionIndex: number;
   totalQuestions: number;
-  onComplete: (score: ScoreResult, spokenText: string, duration: number) => void;
+  onComplete: (score: ScoreResult, spokenText: string, duration: number, audioPath?: string | null) => void;
   onNext: () => void;
   onPrevious?: () => void;
 }
@@ -155,23 +155,20 @@ export function SpeakingTest({
       setScore(result);
       setPhase("results");
       setShowScoreModal(true);
-      onComplete(result, transcription, recordingTime);
 
-      // Save recording to storage + DB for Board/Me playback
+      // Upload audio first so we can attach the URL to the saved attempt.
+      let audioPath: string | null = null;
       try {
-        await uploadRecording({
+        audioPath = await uploadRecording({
           blob: audioBlob,
           questionId: question.id,
-          questionType: question.type,
-          questionTitle: question.title,
-          durationSeconds: recordingTime,
-          transcript: transcription,
-          score: result,
         });
-        setDiscussionRefreshKey((k) => k + 1);
       } catch (uploadErr) {
         console.error("Recording upload failed:", uploadErr);
       }
+
+      onComplete(result, transcription, recordingTime, audioPath);
+      setDiscussionRefreshKey((k) => k + 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to process recording");
       setPhase("prep");
