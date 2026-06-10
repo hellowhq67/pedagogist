@@ -366,7 +366,9 @@ export default function Dashboard() {
                           questions={currentQuestions}
                           currentQuestionIndex={currentQuestionIndex}
                           completedQuestions={completedQuestions}
+                          lockedFromIndex={isFree ? FREE_QUESTION_LIMIT : undefined}
                           onSelectQuestion={handleSelectQuestion}
+                          onSelectLocked={() => toast.error(`Free users get the first ${FREE_QUESTION_LIMIT} questions per type. Upgrade to unlock all.`)}
                           onClose={() => setIsQuestionPanelOpen(false)}
                         />
                       </SheetContent>
