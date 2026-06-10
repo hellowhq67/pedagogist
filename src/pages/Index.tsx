@@ -45,23 +45,28 @@ export default function Index() {
 
   const currentQuestion = currentQuestions[currentQuestionIndex];
 
-  const handleComplete = async (score: ScoreResult | any, text: string, duration?: number) => {
-    if (currentQuestion) {
-      setCompletedQuestions((prev) => new Set(prev).add(currentQuestion.id));
-      if (selectedSection === "speaking") {
-        const canProceed = await incrementUsage();
-        if (!canProceed) {
-          toast.error("Daily scoring limit reached (5/day). Try again tomorrow!");
-          return;
-        }
-        await saveAttempt({
-          questionId: currentQuestion.id,
-          testType: currentQuestion.type as TestType,
-          spokenText: text,
-          score,
-          durationSeconds: duration || 0,
-        });
-      }
+  const handleComplete = async (
+    score: ScoreResult | any,
+    text: string,
+    duration?: number,
+    audioPath?: string | null,
+  ) => {
+    if (!currentQuestion) return;
+    setCompletedQuestions((prev) => new Set(prev).add(currentQuestion.id));
+    const canProceed = await incrementUsage();
+    if (!canProceed) {
+      toast.error("You've run out of scoring credits. Upgrade to keep practicing.");
+      return;
+    }
+    if (selectedSection === "speaking") {
+      await saveAttempt({
+        questionId: currentQuestion.id,
+        testType: currentQuestion.type as TestType,
+        spokenText: text,
+        score,
+        durationSeconds: duration || 0,
+        audioUrl: audioPath ?? null,
+      });
     }
   };
 
@@ -206,7 +211,7 @@ export default function Index() {
                       {!canScore && (
                         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
                           <AlertCircle className="h-5 w-5 text-amber-500" />
-                          <span className="text-sm">Daily limit reached ({remainingAttempts}/5). Scoring disabled.</span>
+                          <span className="text-sm">No scoring credits left ({remainingAttempts} remaining). Upgrade to continue.</span>
                         </div>
                       )}
                       <SpeakingTest
@@ -214,7 +219,7 @@ export default function Index() {
                         question={currentQuestion as any}
                         questionIndex={currentQuestionIndex}
                         totalQuestions={currentQuestions.length}
-                        onComplete={(score, text, duration) => handleComplete(score, text, duration)}
+                        onComplete={(score, text, duration, audioPath) => handleComplete(score, text, duration, audioPath)}
                         onNext={handleNext}
                         onPrevious={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
                       />
