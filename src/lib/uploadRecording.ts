@@ -1,52 +1,35 @@
 import { supabase } from "@/integrations/supabase/client";
-import { toPteScale } from "./pteScale";
 
 export interface UploadRecordingArgs {
   blob: Blob;
   questionId: string;
-  questionType: string;
-  questionTitle?: string;
-  durationSeconds?: number;
-  transcript?: string;
-  score?: any;
 }
 
-export async function uploadRecording(args: UploadRecordingArgs) {
+/** Uploads a recording to the practice-recordings bucket and returns its storage path. */
+export async function uploadRecording({ blob, questionId }: UploadRecordingArgs): Promise<string | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) return null;
 
-  const ext = args.blob.type.includes("mp4") ? "mp4" : "webm";
-  const path = `${user.id}/${args.questionId}/${Date.now()}.${ext}`;
+  const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+  const path = `${user.id}/${questionId}/${Date.now()}.${ext}`;
 
-  const { error: upErr } = await supabase
+  const { error } = await supabase
     .storage
     .from("practice-recordings")
-    .upload(path, args.blob, { contentType: args.blob.type, upsert: false });
-  if (upErr) throw upErr;
+    .upload(path, blob, { contentType: blob.type, upsert: false });
 
-  const scaled = args.score?.overallScore != null ? toPteScale(args.score.overallScore) : null;
-
-  const { data, error } = await (supabase as any)
-    .from("speaking_recordings")
-    .insert({
-      user_id: user.id,
-      question_id: args.questionId,
-      question_type: args.questionType,
-      question_title: args.questionTitle,
-      audio_path: path,
-      duration_seconds: args.durationSeconds ?? 0,
-      transcript: args.transcript ?? null,
-      score: args.score ?? null,
-      scaled_score: scaled,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  if (error) {
+    console.error("Recording upload failed:", error);
+    return null;
+  }
+  return path;
 }
 
+/** Resolve a storage path to a temporary signed URL for playback. */
 export async function getSignedAudioUrl(path: string): Promise<string | null> {
+  if (!path) return null;
+  // If a full URL was stored, just return it.
+  if (path.startsWith("http")) return path;
   const { data, error } = await supabase
     .storage
     .from("practice-recordings")
