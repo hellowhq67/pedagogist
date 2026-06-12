@@ -28,12 +28,19 @@ export async function uploadRecording({ blob, questionId }: UploadRecordingArgs)
 /** Resolve a storage path to a temporary signed URL for playback. */
 export async function getSignedAudioUrl(path: string): Promise<string | null> {
   if (!path) return null;
-  // If a full URL was stored, just return it.
   if (path.startsWith("http")) return path;
-  const { data, error } = await supabase
+
+  // Owner path — try direct signing (storage policy allows owners).
+  const { data: own } = await supabase
     .storage
     .from("practice-recordings")
     .createSignedUrl(path, 60 * 60);
+  if (own?.signedUrl) return own.signedUrl;
+
+  // Non-owner (e.g. leaderboard) — go through the secure edge function.
+  const { data, error } = await supabase.functions.invoke("sign-recording", {
+    body: { path },
+  });
   if (error) return null;
-  return data.signedUrl;
+  return (data as { signedUrl?: string })?.signedUrl ?? null;
 }

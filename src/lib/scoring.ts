@@ -32,6 +32,10 @@ interface ScoringParams {
   lectureContent?: string;
   question?: string;
   expectedAnswer?: string;
+  // Server-side persistence — pass these and the edge function will save the attempt
+  questionId?: string;
+  audioPath?: string | null;
+  durationSeconds?: number;
 }
 
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
