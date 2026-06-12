@@ -141,22 +141,10 @@ export function SpeakingTest({
     try {
       const transcription = await transcribeAudio(audioBlob);
       setSpokenText(transcription);
-      
-      const result = await scoreSpeaking({
-        testType: question.type,
-        spokenText: transcription,
-        originalText: question.content.text,
-        imageDescription: question.content.imageDescription,
-        lectureContent: question.content.lectureContent,
-        question: question.content.question,
-        expectedAnswer: question.content.expectedAnswer,
-      });
-      
-      setScore(result);
-      setPhase("results");
-      setShowScoreModal(true);
 
-      // Upload audio first so we can attach the URL to the saved attempt.
+      // Upload audio FIRST so we can hand the storage path to the scoring
+      // function — which will persist the attempt server-side (so the client
+      // never writes scores itself).
       let audioPath: string | null = null;
       try {
         audioPath = await uploadRecording({
@@ -166,6 +154,23 @@ export function SpeakingTest({
       } catch (uploadErr) {
         console.error("Recording upload failed:", uploadErr);
       }
+
+      const result = await scoreSpeaking({
+        testType: question.type,
+        spokenText: transcription,
+        originalText: question.content.text,
+        imageDescription: question.content.imageDescription,
+        lectureContent: question.content.lectureContent,
+        question: question.content.question,
+        expectedAnswer: question.content.expectedAnswer,
+        questionId: question.id,
+        audioPath,
+        durationSeconds: recordingTime,
+      });
+
+      setScore(result);
+      setPhase("results");
+      setShowScoreModal(true);
 
       onComplete(result, transcription, recordingTime, audioPath);
       setDiscussionRefreshKey((k) => k + 1);

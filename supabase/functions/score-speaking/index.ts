@@ -21,6 +21,10 @@ interface ScoringRequest {
   lectureContent?: string;
   question?: string;
   expectedAnswer?: string;
+  // Server-side persistence inputs (so the client never writes scores itself)
+  questionId?: string;
+  audioPath?: string | null;
+  durationSeconds?: number;
 }
 
 interface ScoreResult {
@@ -131,7 +135,7 @@ serve(async (req) => {
 
     console.log(`Rate limit check passed: ${rateLimit.remaining} remaining (tier: ${rateLimit.tier})`);
 
-    const { testType, originalText, spokenText, imageDescription, lectureContent, question, expectedAnswer } = await req.json() as ScoringRequest;
+    const { testType, originalText, spokenText, imageDescription, lectureContent, question, expectedAnswer, questionId, audioPath, durationSeconds } = await req.json() as ScoringRequest;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -538,6 +542,33 @@ Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%
     }
 
     console.log(`Scored successfully: Overall ${scoreResult.overallScore}/90 (C:${scoreResult.content} F:${scoreResult.fluency} P:${scoreResult.pronunciation})`);
+
+    // Persist the attempt server-side with service role so users cannot fabricate scores.
+    if (questionId) {
+      try {
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const admin = createClient(supabaseUrl, serviceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { error: insertErr } = await admin.from("speaking_attempts").insert({
+          user_id: user.id,
+          question_id: questionId,
+          test_type: testType,
+          spoken_text: spokenText,
+          overall_score: Math.round(scoreResult.overallScore),
+          content_score: Math.round(scoreResult.content),
+          fluency_score: Math.round(scoreResult.fluency),
+          pronunciation_score: Math.round(scoreResult.pronunciation),
+          feedback: scoreResult.feedback,
+          detailed_analysis: scoreResult.detailedAnalysis,
+          duration_seconds: durationSeconds ?? null,
+          audio_url: audioPath ?? null,
+        });
+        if (insertErr) console.error("Failed to persist speaking attempt:", insertErr);
+      } catch (persistErr) {
+        console.error("Persistence error:", persistErr);
+      }
+    }
 
     return new Response(JSON.stringify({
       ...scoreResult,

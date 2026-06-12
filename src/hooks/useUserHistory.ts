@@ -101,46 +101,14 @@ export function useUserHistory(): UseUserHistoryReturn {
     fetchAttempts();
   }, [fetchAttempts]);
 
-  const saveAttempt = useCallback(async ({
-    questionId,
-    testType,
-    spokenText,
-    score,
-    durationSeconds,
-    audioUrl,
-  }: SaveAttemptParams) => {
+  const saveAttempt = useCallback(async (_params: SaveAttemptParams) => {
+    // Speaking attempts are persisted server-side by the `score-speaking`
+    // edge function (service role). The client no longer inserts scores —
+    // this keeps the public API for callers and just refreshes the list.
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log("No user logged in, skipping save");
-        return;
-      }
-
-      const { error: insertError } = await supabase
-        .from("speaking_attempts")
-        .insert({
-          user_id: user.id,
-          question_id: questionId,
-          test_type: testType,
-          spoken_text: spokenText,
-          overall_score: Math.round(score.overallScore),
-          content_score: Math.round(score.content),
-          fluency_score: Math.round(score.fluency),
-          pronunciation_score: Math.round(score.pronunciation),
-          feedback: score.feedback,
-          detailed_analysis: score.detailedAnalysis,
-          duration_seconds: durationSeconds,
-          audio_url: audioUrl ?? null,
-        });
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      // Refetch to update the list
       await fetchAttempts();
     } catch (err) {
-      console.error("Error saving attempt:", err);
+      console.error("Error refreshing attempts:", err);
     }
   }, [fetchAttempts]);
 
