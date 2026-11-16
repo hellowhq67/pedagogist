@@ -6,9 +6,9 @@ export interface UploadRecordingArgs {
 }
 
 /** Uploads a recording to the practice-recordings bucket and returns its storage path. */
-export async function uploadRecording({ blob, questionId }: UploadRecordingArgs): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export async function uploadRecording({ blob, questionId }: UploadRecordingArgs): Promise<string> {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) throw new Error("Please sign in before submitting your recording.");
 
   const ext = blob.type.includes("mp4") ? "mp4" : "webm";
   const path = `${user.id}/${questionId}/${Date.now()}.${ext}`;
@@ -20,7 +20,7 @@ export async function uploadRecording({ blob, questionId }: UploadRecordingArgs)
 
   if (error) {
     console.error("Recording upload failed:", error);
-    return null;
+    throw new Error(error.message || "Could not upload your recording. Please try again.");
   }
   return path;
 }

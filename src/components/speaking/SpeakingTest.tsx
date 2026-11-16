@@ -150,12 +150,7 @@ export function SpeakingTest({
       const transcription = await transcribeAudio(audioBlob);
       setSpokenText(transcription);
 
-      let audioPath: string | null = null;
-      try {
-        audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
-      } catch (uploadErr) {
-        console.error("Recording upload failed:", uploadErr);
-      }
+      const audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
 
       const id = await savePracticeResponse({
         questionId: question.id,
