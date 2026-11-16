@@ -92,7 +92,7 @@ export function MockTestSection({
   const [feedback, setFeedback] = useState<DetailedFeedback | null>(null);
   const [responseId, setResponseId] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const { credits, refresh: refreshCredits } = useCredits();
+  const { credits, refresh: refreshCredits, optimisticallySpendOne } = useCredits();
   
   const { speak, isSpeaking, stop: stopSpeaking } = useTextToSpeech();
   const { 
@@ -306,6 +306,7 @@ export function MockTestSection({
   const handleGetAiScore = async () => {
     if (!responseId) return;
     setIsConfirmOpen(false);
+    optimisticallySpendOne();
     setPhase("scoring");
     setIsSubmitting(true);
     try {

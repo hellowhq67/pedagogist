@@ -142,7 +142,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
       const [progressRes, subRes, attemptsRes, allAttemptsRes, writingRes] = await Promise.all([
         supabase.from("user_progress").select("*").eq("user_id", user.id),
-        supabase.from("subscriptions").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("subscriptions").select("tier").eq("user_id", user.id).maybeSingle(),
         supabase
           .from("speaking_attempts")
           .select("created_at, overall_score, pronunciation_score, fluency_score, content_score, test_type")

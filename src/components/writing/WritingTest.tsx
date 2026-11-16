@@ -42,7 +42,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
   const [score, setScore] = useState<WritingScoreResult | null>(null);
   const [responseId, setResponseId] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const { credits, refresh: refreshCredits } = useCredits();
+  const { credits, refresh: refreshCredits, optimisticallySpendOne } = useCredits();
 
   const wordCount = writtenText.trim().split(/\s+/).filter(Boolean).length;
   const isWithinWordLimit = wordCount >= question.minWords && wordCount <= question.maxWords;
@@ -94,6 +94,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
   const handleGetScore = useCallback(async () => {
     if (!responseId) return;
     setIsConfirmOpen(false);
+    optimisticallySpendOne();
     setPhase("scoring");
 
     try {
@@ -119,7 +120,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
     } finally {
       await refreshCredits();
     }
-  }, [responseId, question, writtenText, onComplete, refreshCredits]);
+  }, [responseId, question, writtenText, onComplete, refreshCredits, optimisticallySpendOne]);
 
   const handleRetry = () => {
     setWrittenText("");
