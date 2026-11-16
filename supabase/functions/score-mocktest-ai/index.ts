@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateGeminiText } from "../_shared/gemini.ts";
 import { beginScoreRequest, createScoreAdmin, finishScoreRequest, refundScoreRequest, type ScoreReservation } from "../_shared/ai-score-credit.ts";
 
 const corsHeaders = {
@@ -150,9 +151,9 @@ serve(async (req) => {
       });
     }
 
-    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const needsAi = isSpeakingQuestion(questionType) || isWritingQuestion(questionType);
-    if (needsAi && !GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY is not configured");
+    if (needsAi && !GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     let admin: ReturnType<typeof createScoreAdmin> | null = null;
     let remaining: number | null = null;
@@ -215,9 +216,9 @@ serve(async (req) => {
     const maxScore = MAX_SCORES[questionType];
     let feedback: DetailedFeedback;
     if (isSpeakingQuestion(questionType)) {
-      feedback = await scoreSpeaking(request, GOOGLE_API_KEY!, maxScore);
+      feedback = await scoreSpeaking(request, GEMINI_API_KEY!, maxScore);
     } else if (isWritingQuestion(questionType)) {
-      feedback = await scoreWriting(request, GOOGLE_API_KEY!, maxScore);
+      feedback = await scoreWriting(request, GEMINI_API_KEY!, maxScore);
     } else {
       feedback = scoreObjective(request, maxScore);
     }
@@ -271,41 +272,13 @@ function isWritingQuestion(type: QuestionType): boolean {
   return ["summarize-written-text", "write-essay", "summarize-spoken-text", "write-from-dictation"].includes(type);
 }
 
-// Call Google Gemini API directly
 async function callGeminiAPI(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 2048,
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Gemini API error:", response.status, errorText);
-    throw new Error(`Gemini API failed: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return generateGeminiText(apiKey, systemPrompt, userPrompt, 0.1);
 }
 
 // Speaking Scoring with Pronunciation Analysis
 async function scoreSpeaking(
-  request: ScoringRequest, 
+  request: ScoringRequest,
   apiKey: string,
   maxScore: number
 ): Promise<DetailedFeedback> {

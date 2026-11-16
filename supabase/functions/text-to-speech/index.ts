@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateGeminiText } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,51 +51,19 @@ serve(async (req) => {
       throw new Error("Text is required for speech synthesis");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     console.log(`Generating TTS for text: "${text.substring(0, 50)}..." with voice: ${voice}`);
 
-    // Use Lovable AI gateway to generate speech-like text for now
-    // In production, you'd integrate with a proper TTS service
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a phonetic transcription assistant. Convert the text into IPA (International Phonetic Alphabet) notation that can help with pronunciation practice. Also provide natural speech markers for pauses and emphasis.`
-          },
-          {
-            role: "user",
-            content: `Provide phonetic guidance for: "${text}"`
-          }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      throw new Error(`TTS generation failed: ${response.status}`);
-    }
-
-    const aiResponse = await response.json();
-    const phoneticGuide = aiResponse.choices?.[0]?.message?.content || "";
+    const phoneticGuide = await generateGeminiText(
+      GEMINI_API_KEY,
+      "You are a phonetic transcription assistant. Convert text into IPA notation that supports pronunciation practice. Include natural pause and emphasis markers.",
+      `Provide phonetic guidance for: "${text}"`,
+      0.2,
+    );
 
     // For browser-based TTS, we return the text and phonetic guide
     // The client will use the Web Speech API for actual audio playback
