@@ -1,11 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
-export function useCredits() {
+interface CreditsContextValue {
+  credits: number;
+  tier: string;
+  loading: boolean;
+  refresh: () => Promise<void>;
+}
+
+const CreditsContext = createContext<CreditsContextValue | null>(null);
+
+export function CreditsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [credits, setCredits] = useState<number | null>(null);
-  const [tier, setTier] = useState<string>("free");
+  const [tier, setTier] = useState("free");
   const [loading, setLoading] = useState(true);
 
   const fetchCredits = useCallback(async () => {
@@ -15,6 +24,7 @@ export function useCredits() {
       setLoading(false);
       return;
     }
+
     const { data } = await supabase
       .from("subscriptions")
       .select("credits_remaining, tier")
@@ -25,9 +35,8 @@ export function useCredits() {
     setLoading(false);
   }, [user]);
 
-  useEffect(() => { fetchCredits(); }, [fetchCredits]);
+  useEffect(() => { void fetchCredits(); }, [fetchCredits]);
 
-  // Realtime updates
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -41,11 +50,21 @@ export function useCredits() {
             if (subscription.credits_remaining != null) setCredits(subscription.credits_remaining);
             if (subscription.tier) setTier(subscription.tier);
           }
-        }
+        },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { void supabase.removeChannel(channel); };
   }, [user]);
 
-  return { credits: credits ?? 0, tier, loading, refresh: fetchCredits };
+  return (
+    <CreditsContext.Provider value={{ credits: credits ?? 0, tier, loading, refresh: fetchCredits }}>
+      {children}
+    </CreditsContext.Provider>
+  );
+}
+
+export function useCredits() {
+  const context = useContext(CreditsContext);
+  if (!context) throw new Error("useCredits must be used within a CreditsProvider");
+  return context;
 }
