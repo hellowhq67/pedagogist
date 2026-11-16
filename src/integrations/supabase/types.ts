@@ -128,6 +128,48 @@ export type Database = {
         }
         Relationships: []
       }
+      practice_responses: {
+        Row: {
+          audio_path: string | null
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          question_id: string
+          response_text: string
+          score: Json | null
+          section: string
+          status: string
+          test_type: string
+          user_id: string
+        }
+        Insert: {
+          audio_path?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          question_id: string
+          response_text: string
+          score?: Json | null
+          section: string
+          status?: string
+          test_type: string
+          user_id: string
+        }
+        Update: {
+          audio_path?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          question_id?: string
+          response_text?: string
+          score?: Json | null
+          section?: string
+          status?: string
+          test_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -627,6 +669,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_ai_score_credit: {
+        Args: { p_user_id: string }
+        Returns: {
+          ok: boolean
+          remaining: number
+          tier: string
+        }[]
+      }
       consume_practice_credit: {
         Args: never
         Returns: {
@@ -680,6 +730,7 @@ export type Database = {
         }[]
       }
       reset_daily_credits: { Args: never; Returns: undefined }
+      restore_ai_score_credit: { Args: { p_user_id: string }; Returns: number }
       should_have_human_review: {
         Args: { p_question_type: Database["public"]["Enums"]["question_type"] }
         Returns: boolean
