@@ -24,6 +24,15 @@ export default function Auth() {
   const { signIn, signUp, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
+  const redirectPath = (() => {
+    const requested = searchParams.get('redirect');
+    if (!requested?.startsWith('/')) return '/dashboard';
+    try {
+      return new URL(requested, window.location.origin).origin === window.location.origin ? requested : '/dashboard';
+    } catch {
+      return '/dashboard';
+    }
+  })();
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,9 +44,9 @@ export default function Auth() {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/dashboard');
+      navigate(redirectPath);
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, redirectPath]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string } = {};
@@ -85,7 +94,7 @@ export default function Auth() {
             title: 'Welcome aboard! 🎉',
             description: 'Your account has been created. You can start practicing now!',
           });
-          navigate('/dashboard');
+          navigate(redirectPath);
         }
       } else {
         const { error } = await signIn(email, password);
@@ -108,7 +117,7 @@ export default function Auth() {
             title: 'Welcome back! 👋',
             description: 'You have successfully signed in.',
           });
-          navigate('/dashboard');
+          navigate(redirectPath);
         }
       }
     } catch (err) {

@@ -520,6 +520,9 @@ export type Database = {
           polar_customer_id: string | null
           polar_subscription_id: string | null
           status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          cancel_at_period_end: boolean
           tier: Database["public"]["Enums"]["subscription_tier"] | null
           updated_at: string | null
           user_id: string
@@ -535,6 +538,9 @@ export type Database = {
           polar_customer_id?: string | null
           polar_subscription_id?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          cancel_at_period_end?: boolean
           tier?: Database["public"]["Enums"]["subscription_tier"] | null
           updated_at?: string | null
           user_id: string
@@ -550,6 +556,9 @@ export type Database = {
           polar_customer_id?: string | null
           polar_subscription_id?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          cancel_at_period_end?: boolean
           tier?: Database["public"]["Enums"]["subscription_tier"] | null
           updated_at?: string | null
           user_id?: string

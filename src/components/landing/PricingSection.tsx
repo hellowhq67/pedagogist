@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -60,6 +61,13 @@ const TIERS: Tier[] = [
 ];
 
 export function PricingSection() {
+  const { user } = useAuth();
+  const getCtaUrl = (name: string) => {
+    if (name === 'Free') return user ? '/dashboard' : `/auth?redirect=${encodeURIComponent('/dashboard')}`;
+    const billingPath = `/billing?plan=${name.toLowerCase()}`;
+    return user ? billingPath : `/auth?redirect=${encodeURIComponent(billingPath)}`;
+  };
+
   return (
     <section id="pricing" className="py-24 bg-muted/5 relative overflow-hidden">
       {/* Background decoration */}
@@ -145,7 +153,7 @@ export function PricingSection() {
                     }`}
                     size="lg"
                   >
-                    <Link to="/auth">{tier.cta}</Link>
+                    <Link to={getCtaUrl(tier.name)}>{tier.cta}</Link>
                   </Button>
                 </CardContent>
               </Card>

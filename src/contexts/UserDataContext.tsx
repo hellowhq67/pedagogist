@@ -24,6 +24,10 @@ interface SubscriptionRow {
   tier: string;
   credits_remaining: number;
   daily_credits_used: number;
+  status?: string | null;
+  current_period_end?: string | null;
+  stripe_customer_id?: string | null;
+  cancel_at_period_end?: boolean;
 }
 
 interface WeekDay {

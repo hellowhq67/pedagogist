@@ -26,7 +26,7 @@ const faqs = [
   },
   {
     q: "Do you support Bangladeshi students with BDT pricing?",
-    a: "Yes — you can view prices in BDT at the live exchange rate. Billing is processed in USD via our payment partner Polar.sh, which supports Bangladeshi cards and Stripe-backed transactions.",
+    a: "Prices are billed in USD through Stripe. You can securely manage or cancel your subscription from the billing page.",
   },
   {
     q: "Is my data and audio safe?",

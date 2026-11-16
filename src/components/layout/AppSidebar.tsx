@@ -17,6 +17,8 @@ import {
   LayoutDashboard,
   ClipboardList,
   CalendarClock,
+  CreditCard,
+  UserRound,
 } from "lucide-react";
 import {
   Sidebar,
@@ -153,6 +155,8 @@ export function AppSidebar({
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
     { title: "Mock Tests", url: "/mock-tests", icon: ClipboardList },
     { title: "Full Mock Test", url: "/mock-test", icon: CalendarClock },
+    { title: "Billing", url: "/billing", icon: CreditCard },
+    { title: "Profile", url: "/profile", icon: UserRound },
   ];
 
   return (
