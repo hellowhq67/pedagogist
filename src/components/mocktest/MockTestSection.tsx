@@ -257,12 +257,7 @@ export function MockTestSection({
 
     try {
       const spokenText = await transcribeAudio(audioBlob);
-      let audioPath: string | null = null;
-      try {
-        audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
-      } catch (uploadError) {
-        console.error("Mock test recording upload failed:", uploadError);
-      }
+      const audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
       const id = await savePracticeResponse({
         questionId: question.id,
         section: "speaking",
