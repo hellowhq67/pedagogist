@@ -15,6 +15,7 @@ import MockTestList from "./pages/MockTestList";
 import NotFound from "./pages/NotFound";
 import Billing from "./pages/Billing";
 import Profile from "./pages/Profile";
+import Pricing from "./pages/Pricing";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
                   <Route path="/mock-tests" element={<MockTestList />} />
                   <Route path="/mock-test" element={<MockTest />} />
                   <Route path="/billing" element={<Billing />} />
+                  <Route path="/pricing" element={<Pricing />} />
                   <Route path="/profile" element={<Profile />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />

@@ -29,12 +29,12 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+            <a href="/#features" className="text-muted-foreground hover:text-foreground transition-colors">
               Features
             </a>
-            <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">
               Pricing
-            </a>
+            </Link>
             <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
               Practice
             </Link>
@@ -55,6 +55,8 @@ export function Navbar() {
           {/* Mobile Menu Button */}
           <button
             className="md:hidden p-2 text-foreground"
+            aria-label={isOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isOpen}
             onClick={() => setIsOpen(!isOpen)}
           >
             {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -70,12 +72,12 @@ export function Navbar() {
             className="md:hidden py-4 border-t border-border/50"
           >
             <div className="flex flex-col gap-4">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a href="/#features" className="text-muted-foreground hover:text-foreground transition-colors">
                 Features
               </a>
-              <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-colors">
+              <Link to="/pricing" className="text-muted-foreground hover:text-foreground transition-colors">
                 Pricing
-              </a>
+              </Link>
               <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
                 Practice
               </Link>

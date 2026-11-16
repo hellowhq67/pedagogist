@@ -18,12 +18,14 @@ const plans = [
 
 export default function Billing() {
   const { user, loading: authLoading } = useAuth();
-  const { subscription, refresh } = useUserData();
+  const { subscription, refresh, loading: userDataLoading } = useUserData();
   const { refresh: refreshCredits } = useCredits();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session_id");
   const handled = useRef(false);
   const currentTier = subscription?.tier ?? "free";
+  const requestedPlan = searchParams.get("plan");
+  const autoCheckoutStarted = useRef<string | null>(null);
 
   const verification = useQuery({
     queryKey: ["stripe-checkout-verification", user?.id, sessionId],
@@ -58,12 +60,27 @@ export default function Billing() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  useEffect(() => {
+    if (
+      !user ||
+      authLoading ||
+      userDataLoading ||
+      (requestedPlan !== "pro" && requestedPlan !== "premium") ||
+      (requestedPlan === "pro" && currentTier === "basic") ||
+      (requestedPlan === "premium" && currentTier === "premium") ||
+      sessionId ||
+      autoCheckoutStarted.current === requestedPlan
+    ) return;
+    autoCheckoutStarted.current = requestedPlan;
+    checkout.mutate(requestedPlan);
+  }, [user, authLoading, userDataLoading, requestedPlan, sessionId, checkout, currentTier]);
+
   if (!authLoading && !user) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4 py-16">
         <Card className="w-full max-w-lg">
           <CardHeader><CardTitle>Sign in to manage billing</CardTitle><CardDescription>Your subscription and payment details are available after you sign in.</CardDescription></CardHeader>
-          <CardContent><Button asChild><Link to="/auth?redirect=%2Fbilling">Continue to sign in</Link></Button></CardContent>
+          <CardContent><Button asChild><Link to={`/auth?redirect=${encodeURIComponent(requestedPlan === "pro" || requestedPlan === "premium" ? `/billing?plan=${requestedPlan}` : "/billing")}`}>Continue to sign in</Link></Button></CardContent>
         </Card>
       </main>
     );
@@ -83,7 +100,8 @@ export default function Billing() {
           <p className="mt-4 text-muted-foreground">Manage your subscription and keep every practice session moving forward.</p>
         </header>
 
-        {verification.isPending && <div className="mb-6 flex items-center gap-2 rounded-lg border bg-card p-4 text-sm"><Loader2 className="size-4 animate-spin" />Confirming your purchase with Stripe…</div>}
+        {checkout.isPending && <div role="status" className="mb-6 flex items-center gap-2 rounded-lg border bg-card p-4 text-sm"><Loader2 className="size-4 animate-spin" />Preparing secure checkout…</div>}
+        {verification.isPending && <div role="status" className="mb-6 flex items-center gap-2 rounded-lg border bg-card p-4 text-sm"><Loader2 className="size-4 animate-spin" />Confirming your purchase with Stripe…</div>}
         {searchParams.get("checkout") === "cancelled" && <div className="mb-6 rounded-lg border bg-card p-4 text-sm text-muted-foreground">Checkout was canceled. You have not been charged.</div>}
 
         <Card className="mb-10 overflow-hidden border-primary/30 bg-gradient-to-br from-primary/10 via-card to-accent/10">

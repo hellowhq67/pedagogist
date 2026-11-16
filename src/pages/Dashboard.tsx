@@ -69,6 +69,7 @@ import {
   Crown,
   LayoutDashboard,
   CalendarDays,
+  Tag,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { CreditsBadge } from "@/components/dashboard/CreditsBadge";
@@ -332,6 +333,10 @@ export default function Dashboard() {
                 </Button>
               </div>
 
+              <Button variant="ghost" size="sm" asChild className="hidden sm:inline-flex">
+                <Link to="/pricing"><Tag data-icon="inline-start" />Pricing</Link>
+              </Button>
+
               <div className="ml-auto flex items-center gap-4">
                 {currentTier !== 'free' && (
                   <Badge className="bg-gradient-to-r from-primary to-accent text-primary-foreground">
@@ -419,7 +424,7 @@ export default function Dashboard() {
                         </Link>
                       </Button>
                       <Button variant="outline" asChild>
-                        <Link to="/#pricing">
+                        <Link to="/pricing">
                           <Sparkles className="w-4 h-4 mr-2" />
                           Upgrade
                         </Link>
@@ -447,7 +452,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <Button asChild className="shadow-[0_0_20px_hsl(var(--primary)/0.3)]">
-                          <Link to="/#pricing">
+                          <Link to="/pricing">
                             Upgrade Now
                             <ArrowRight className="w-4 h-4 ml-2" />
                           </Link>
@@ -740,7 +745,7 @@ export default function Dashboard() {
                         🔒 This question is locked. Free users get the first {FREE_QUESTION_LIMIT} questions per type.
                       </div>
                       <Button size="sm" asChild>
-                        <Link to="/#pricing">Upgrade</Link>
+                        <Link to="/pricing">Upgrade</Link>
                       </Button>
                     </div>
                   )}
