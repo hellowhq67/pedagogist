@@ -7,33 +7,42 @@ interface CreditsContextValue {
   tier: string;
   loading: boolean;
   refresh: () => Promise<void>;
+  optimisticallySpendOne: () => void;
 }
 
+const FREE_DAILY_CREDITS = 10;
 const CreditsContext = createContext<CreditsContextValue | null>(null);
 
 export function CreditsProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const [credits, setCredits] = useState<number | null>(null);
+  const { user, loading: authLoading } = useAuth();
+  const [credits, setCredits] = useState(0);
   const [tier, setTier] = useState("free");
   const [loading, setLoading] = useState(true);
 
   const fetchCredits = useCallback(async () => {
+    if (authLoading) return;
     if (!user) {
-      setCredits(0);
       setTier("free");
+      setCredits(FREE_DAILY_CREDITS);
       setLoading(false);
       return;
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("subscriptions")
       .select("credits_remaining, tier")
       .eq("user_id", user.id)
       .maybeSingle();
-    setCredits(data?.credits_remaining ?? 0);
-    setTier(data?.tier ?? "free");
+    if (!error) {
+      setTier(data?.tier ?? "free");
+      setCredits(data?.credits_remaining ?? FREE_DAILY_CREDITS);
+    }
     setLoading(false);
-  }, [user]);
+  }, [authLoading, user]);
+
+  const optimisticallySpendOne = useCallback(() => {
+    setCredits((current) => Math.max(0, current - 1));
+  }, []);
 
   useEffect(() => { void fetchCredits(); }, [fetchCredits]);
 
@@ -47,8 +56,8 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
         (payload) => {
           if (payload.new) {
             const subscription = payload.new as { credits_remaining?: number; tier?: string };
-            if (subscription.credits_remaining != null) setCredits(subscription.credits_remaining);
             if (subscription.tier) setTier(subscription.tier);
+            if (subscription.credits_remaining != null) setCredits(subscription.credits_remaining);
           }
         },
       )
@@ -57,7 +66,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   return (
-    <CreditsContext.Provider value={{ credits: credits ?? 0, tier, loading, refresh: fetchCredits }}>
+    <CreditsContext.Provider value={{ credits, tier, loading, refresh: fetchCredits, optimisticallySpendOne }}>
       {children}
     </CreditsContext.Provider>
   );

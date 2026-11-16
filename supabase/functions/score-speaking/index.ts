@@ -52,6 +52,8 @@ const PTE_WEIGHTS = {
   "answer-short-question": { content: 0.8, fluency: 0.1, pronunciation: 0.1 },
   "summarize-spoken-text": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
   "read-and-retell": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
+  "summarize-group-discussion": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
+  "respond-to-situation": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
 };
 
 serve(async (req) => {

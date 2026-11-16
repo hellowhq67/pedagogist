@@ -677,6 +677,24 @@ export type Database = {
           tier: string
         }[]
       }
+      begin_ai_score_request: {
+        Args: { p_response_id: string; p_user_id: string }
+        Returns: {
+          already_scored: boolean
+          ok: boolean
+          remaining: number
+          saved_score: Json | null
+          tier: string
+        }[]
+      }
+      complete_ai_score_request: {
+        Args: { p_response_id: string; p_score: Json; p_user_id: string }
+        Returns: boolean
+      }
+      refund_ai_score_request: {
+        Args: { p_response_id: string; p_user_id: string }
+        Returns: number
+      }
       consume_practice_credit: {
         Args: never
         Returns: {
