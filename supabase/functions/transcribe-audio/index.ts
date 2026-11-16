@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { transcribeWithGemini } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,9 +120,9 @@ serve(async (req) => {
       throw new Error("No audio data provided");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not configured");
     }
 
     console.log(`Processing audio for transcription for user ${user.id}...`);
@@ -130,71 +131,9 @@ serve(async (req) => {
     const binaryAudio = processBase64Chunks(audio);
     console.log(`Audio size: ${binaryAudio.length} bytes`);
 
-    // Use Gemini for audio transcription via the AI gateway
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `You are a precise speech-to-text transcription system. 
-Your task is to accurately transcribe spoken English audio.
-- Transcribe exactly what is spoken, word for word
-- Include all words, even filler words like "um", "uh", "like"
-- Preserve the speaker's exact phrasing
-- Do not add punctuation that changes meaning
-- If audio is unclear, transcribe what you can hear
-- If completely inaudible, respond with: [AUDIO_UNCLEAR]
-Respond ONLY with the transcription, nothing else.`
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Transcribe this audio recording exactly as spoken:"
-              },
-              {
-                type: "input_audio",
-                input_audio: {
-                  data: audio,
-                  format: mimeType.includes("wav") ? "wav" : "mp3"
-                }
-              }
-            ]
-          }
-        ],
-        temperature: 0.1,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Transcription error:", response.status, errorText);
-
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI usage limit reached. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error(`Transcription failed: ${response.status}`);
-    }
-
-    const aiResponse = await response.json();
-    const transcription = aiResponse.choices?.[0]?.message?.content?.trim() || "";
+    const transcriptionInstruction = `You are a precise speech-to-text transcription system.
+Transcribe English audio exactly as spoken, including filler words and repetitions. Preserve the speaker's phrasing. If completely inaudible, respond with [AUDIO_UNCLEAR]. Return only the transcription.`;
+    const transcription = await transcribeWithGemini(GEMINI_API_KEY, transcriptionInstruction, audio, mimeType);
 
     console.log(`Transcription complete: "${transcription.substring(0, 50)}..."`);
 
