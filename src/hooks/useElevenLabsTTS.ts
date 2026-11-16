@@ -33,13 +33,13 @@ export function useElevenLabsTTS(): UseElevenLabsTTSReturn {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+        `${import.meta.env.VITE_RUNTIME_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            apikey: import.meta.env.VITE_RUNTIME_SUPABASE_PUBLISHABLE_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_RUNTIME_SUPABASE_PUBLISHABLE_KEY}`,
           },
           body: JSON.stringify({
             text,
