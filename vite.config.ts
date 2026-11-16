@@ -11,7 +11,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "::",
       port: 8080,
-      allowedHosts: ["sb-2082vfrd3p3r.vercel.run"],
+      allowedHosts: [
+        "sb-2082vfrd3p3r.vercel.run",
+        "sb-2gk1meeo4jgr.vercel.run",
+      ],
     },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
     envPrefix: "VITE_RUNTIME_",
@@ -22,10 +25,12 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       "import.meta.env.VITE_RUNTIME_SUPABASE_URL": JSON.stringify(
-        env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL,
+        env.VITE_SUPABASE_URL ?? env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL,
       ),
       "import.meta.env.VITE_RUNTIME_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(
-        env.SUPABASE_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+        env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+          env.SUPABASE_PUBLISHABLE_KEY ??
+          env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
       ),
     },
   };

@@ -55,7 +55,7 @@ export function SpeakingTest({
   const [responseId, setResponseId] = useState<string | null>(null);
   const [submittedAudioPath, setSubmittedAudioPath] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const { credits, refresh: refreshCredits } = useCredits();
+  const { credits, refresh: refreshCredits, optimisticallySpendOne } = useCredits();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -177,6 +177,7 @@ export function SpeakingTest({
   const handleGetScore = async () => {
     if (!responseId) return;
     setIsConfirmOpen(false);
+    optimisticallySpendOne();
     setPhase("scoring");
 
     try {
