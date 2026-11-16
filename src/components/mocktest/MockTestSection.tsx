@@ -18,6 +18,11 @@ import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { AudioWaveform } from "@/components/speaking/AudioWaveform";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { AiScoreConfirmationDialog } from "@/components/practice/AiScoreConfirmationDialog";
+import { useCredits } from "@/hooks/useCredits";
+import { getPracticeScoreError, savePracticeResponse } from "@/lib/practiceResponses";
+import { transcribeAudio } from "@/lib/scoring";
+import { uploadRecording } from "@/lib/uploadRecording";
 
 interface DetailedFeedback {
   totalScore: number;
@@ -65,7 +70,7 @@ interface MockTestSectionProps {
   timeLimit: number;
 }
 
-type Phase = "answering" | "processing" | "feedback";
+type Phase = "answering" | "ready-to-submit" | "processing" | "submitted" | "scoring" | "feedback";
 
 export function MockTestSection({
   question,
@@ -85,6 +90,9 @@ export function MockTestSection({
   const [draggedItems, setDraggedItems] = useState<string[]>([]);
   const [blankAnswers, setBlankAnswers] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<DetailedFeedback | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const { credits, refresh: refreshCredits } = useCredits();
   
   const { speak, isSpeaking, stop: stopSpeaking } = useTextToSpeech();
   const { 
@@ -108,6 +116,8 @@ export function MockTestSection({
     setHasPlayedAudio(false);
     setBlankAnswers({});
     setFeedback(null);
+    setResponseId(null);
+    setIsConfirmOpen(false);
     resetRecording();
     
     // Initialize drag items for reorder questions
@@ -136,11 +146,9 @@ export function MockTestSection({
     return () => clearInterval(timer);
   }, [question.id, phase]);
 
-  // Auto-submit when recording ends
+  // Keep completed audio as a draft until the learner submits it.
   useEffect(() => {
-    if (audioBlob && !isRecording && phase === "answering") {
-      handleSubmitSpeaking();
-    }
+    if (audioBlob && !isRecording && phase === "answering") setPhase("ready-to-submit");
   }, [audioBlob, isRecording, phase]);
 
   const formatTime = (seconds: number) => {
@@ -150,18 +158,12 @@ export function MockTestSection({
   };
 
   const handleAutoSubmit = useCallback(() => {
-    if (isSpeakingQuestion()) {
-      if (audioBlob) {
-        handleSubmitSpeaking();
-      } else {
-        submitWithScore(null, 0, getMaxScore());
-      }
-    } else if (isWritingQuestion()) {
-      handleSubmitWriting();
+    if (isSpeakingQuestion() && audioBlob) {
+      setPhase("ready-to-submit");
     } else if (isReadingQuestion() || isListeningQuestion()) {
       handleSubmitSelection();
     }
-  }, [audioBlob, textAnswer, selectedOptions, draggedItems, blankAnswers]);
+  }, [audioBlob, selectedOptions, draggedItems, blankAnswers]);
 
   const isSpeakingQuestion = () => {
     return ["read-aloud", "repeat-sentence", "describe-image", "retell-lecture", "answer-short-question"]
@@ -228,28 +230,12 @@ export function MockTestSection({
     }
   };
 
-  // Call AI scoring edge function
   const callAIScoring = async (payload: any): Promise<DetailedFeedback> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('score-mocktest-ai', {
-        body: payload
-      });
-      
-      if (error) throw error;
-      return data as DetailedFeedback;
-    } catch (err) {
-      console.error("AI Scoring error:", err);
-      // Return fallback scoring
-      return {
-        totalScore: Math.round(getMaxScore() * 0.5),
-        maxScore: getMaxScore(),
-        percentage: 50,
-        strengths: ["Response submitted"],
-        improvements: ["AI analysis unavailable"],
-        tips: ["Practice more for better results"],
-        overallFeedback: "Your response has been recorded. Detailed AI feedback was unavailable."
-      };
-    }
+    const { data, error } = await supabase.functions.invoke("score-mocktest-ai", {
+      body: payload,
+    });
+    if (error) throw new Error(await getPracticeScoreError(error, "AI scoring failed"));
+    return data as DetailedFeedback;
   };
 
   const submitWithScore = (answer: any, score: number, maxScore: number, fb?: DetailedFeedback) => {
@@ -265,54 +251,91 @@ export function MockTestSection({
   };
 
   const handleSubmitSpeaking = async () => {
+    if (!audioBlob) return;
     setPhase("processing");
     setIsSubmitting(true);
-    
+
     try {
-      // For demo, we'll use the transcription simulation
-      const spokenText = question.content?.text || "User's spoken response";
-      
-      const fb = await callAIScoring({
-        questionType: question.type,
-        section: question.section || "speaking",
-        spokenText: spokenText,
-        originalText: question.content?.text || question.content?.lectureContent || ""
+      const spokenText = await transcribeAudio(audioBlob);
+      let audioPath: string | null = null;
+      try {
+        audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
+      } catch (uploadError) {
+        console.error("Mock test recording upload failed:", uploadError);
+      }
+      const id = await savePracticeResponse({
+        questionId: question.id,
+        section: "speaking",
+        testType: question.type,
+        responseText: spokenText,
+        audioPath,
+        durationSeconds: recordingTime,
       });
-      
-      submitWithScore({ audioBlob, audioUrl }, fb.totalScore, fb.maxScore, fb);
+      setTextAnswer(spokenText);
+      setResponseId(id);
+      setPhase("submitted");
     } catch (err) {
-      const score = Math.round(getMaxScore() * 0.6);
-      submitWithScore({ audioBlob, audioUrl }, score, getMaxScore());
+      toast.error(err instanceof Error ? err.message : "Could not save your response");
+      setPhase("ready-to-submit");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSubmitWriting = async () => {
-    if (!textAnswer.trim()) {
-      submitWithScore(null, 0, getMaxScore());
+    const wordCount = textAnswer.trim().split(/\s+/).filter(Boolean).length;
+    if (!textAnswer.trim() || (question.minWords && wordCount < question.minWords) || (question.maxWords && wordCount > question.maxWords)) {
+      toast.error("Complete the response within the required word count before submitting.");
       return;
     }
-    
+
     setPhase("processing");
     setIsSubmitting(true);
-    
+    try {
+      const id = await savePracticeResponse({
+        questionId: question.id,
+        section: "writing",
+        testType: question.type,
+        responseText: textAnswer,
+      });
+      setResponseId(id);
+      setPhase("submitted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save your response");
+      setPhase("answering");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGetAiScore = async () => {
+    if (!responseId) return;
+    setIsConfirmOpen(false);
+    setPhase("scoring");
+    setIsSubmitting(true);
     try {
       const fb = await callAIScoring({
         questionType: question.type,
-        section: question.section || "writing",
-        writtenText: textAnswer,
+        section: isSpeakingQuestion() ? "speaking" : "writing",
+        responseId,
+        originalText: question.content?.text || question.content?.lectureContent || "",
         sourceText: question.content?.sourceText || question.content?.dictationText || "",
-        essayPrompt: question.content?.essayPrompt || ""
+        essayPrompt: question.content?.essayPrompt || "",
       });
-      
-      submitWithScore({ text: textAnswer, wordCount: textAnswer.trim().split(/\s+/).length }, fb.totalScore, fb.maxScore, fb);
+      submitWithScore(
+        isSpeakingQuestion() ? { audioBlob, audioUrl } : { text: textAnswer, wordCount: textAnswer.trim().split(/\s+/).length },
+        fb.totalScore,
+        fb.maxScore,
+        fb,
+      );
     } catch (err) {
-      const wordCount = textAnswer.trim().split(/\s+/).length;
-      const score = Math.round(getMaxScore() * 0.5);
-      submitWithScore({ text: textAnswer, wordCount }, score, getMaxScore());
+      const message = await getPracticeScoreError(err, "Scoring failed. Your credit will be restored.");
+      toast.error(message);
+      setPhase("submitted");
+      if (message.toLowerCase().includes("no scoring credits")) setIsConfirmOpen(true);
     } finally {
       setIsSubmitting(false);
+      await refreshCredits();
     }
   };
 
@@ -556,17 +579,42 @@ export function MockTestSection({
     );
   };
 
-  // Render processing state
-  if (phase === "processing") {
+  if (phase === "processing" || phase === "scoring") {
     return (
       <div className="space-y-6">
         <Card className="p-12">
-          <div className="text-center">
+          <div className="text-center" role="status" aria-live="polite">
             <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Analyzing Your Response</h3>
-            <p className="text-muted-foreground">Our AI is evaluating your answer with detailed feedback...</p>
+            <h3 className="text-xl font-semibold mb-2">{phase === "scoring" ? "Scoring Your Response" : "Saving Your Response"}</h3>
+            <p className="text-muted-foreground">
+              {phase === "scoring" ? "Your credit is reserved while AI feedback is generated." : "Your response is being saved before scoring."}
+            </p>
           </div>
         </Card>
+      </div>
+    );
+  }
+
+  if (phase === "submitted") {
+    return (
+      <div className="space-y-6">
+        <Card className="space-y-4 p-8 text-center">
+          <CheckCircle className="mx-auto h-10 w-10 text-success" />
+          <div>
+            <h3 className="text-xl font-semibold">Response submitted</h3>
+            <p className="text-muted-foreground">Your response is saved. No credit is used until you confirm AI scoring.</p>
+          </div>
+          <Button onClick={() => setIsConfirmOpen(true)} className="mx-auto">
+            Get AI Score
+          </Button>
+        </Card>
+        <AiScoreConfirmationDialog
+          open={isConfirmOpen}
+          credits={credits}
+          isScoring={false}
+          onOpenChange={setIsConfirmOpen}
+          onConfirm={handleGetAiScore}
+        />
       </div>
     );
   }
@@ -661,12 +709,12 @@ export function MockTestSection({
                 </>
               )}
               
-              {audioBlob && !isRecording && (
+              {audioBlob && !isRecording && phase === "ready-to-submit" && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-2 text-primary">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Processing your response...</span>
-                  </div>
+                  <p className="text-sm text-muted-foreground">Recording complete. Submit it to save your response before scoring.</p>
+                  <Button onClick={handleSubmitSpeaking} disabled={isSubmitting}>
+                    <Send className="mr-2 h-4 w-4" /> Submit Response
+                  </Button>
                 </div>
               )}
             </div>

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getPracticeScoreError } from "@/lib/practiceResponses";
 
 export interface ScoreResult {
   overallScore: number;
@@ -25,6 +26,7 @@ export type TestType =
   | "respond-to-situation";
 
 interface ScoringParams {
+  responseId: string;
   testType: TestType;
   spokenText: string;
   originalText?: string;
@@ -67,7 +69,7 @@ export async function scoreSpeaking(params: ScoringParams): Promise<ScoreResult>
 
   if (error) {
     console.error("Scoring error:", error);
-    throw new Error(error.message || "Scoring failed");
+    throw new Error(await getPracticeScoreError(error, "Scoring failed"));
   }
 
   return data as ScoreResult;

@@ -31,7 +31,7 @@ export default function Index() {
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
   const [isQuestionPanelOpen, setIsQuestionPanelOpen] = useState(false);
   const { saveAttempt } = useUserHistory();
-  const { remainingAttempts, canScore, incrementUsage } = useScoringLimit();
+  const { remainingAttempts, canScore } = useScoringLimit();
 
   const currentQuestions = selectedType
     ? selectedSection === "speaking"
@@ -53,11 +53,6 @@ export default function Index() {
   ) => {
     if (!currentQuestion) return;
     setCompletedQuestions((prev) => new Set(prev).add(currentQuestion.id));
-    const canProceed = await incrementUsage();
-    if (!canProceed) {
-      toast.error("You've run out of scoring credits. Upgrade to keep practicing.");
-      return;
-    }
     if (selectedSection === "speaking") {
       await saveAttempt({
         questionId: currentQuestion.id,

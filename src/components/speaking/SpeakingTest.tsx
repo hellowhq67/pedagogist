@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Mic, Square, RotateCcw, Loader2, Volume2, VolumeX, 
   Play, Pause, Bookmark, ChevronLeft, ChevronRight, Search,
-  Languages, Sparkles
+  Languages, Sparkles, Zap, CheckCircle
 } from "lucide-react";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
@@ -21,6 +21,9 @@ import { uploadRecording } from "@/lib/uploadRecording";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { AiScoreConfirmationDialog } from "@/components/practice/AiScoreConfirmationDialog";
+import { useCredits } from "@/hooks/useCredits";
+import { getPracticeScoreError, savePracticeResponse } from "@/lib/practiceResponses";
 
 interface SpeakingTestProps {
   question: SpeakingQuestion;
@@ -31,7 +34,7 @@ interface SpeakingTestProps {
   onPrevious?: () => void;
 }
 
-type Phase = "listen" | "prep" | "recording" | "processing" | "results";
+type Phase = "listen" | "prep" | "recording" | "ready-to-submit" | "submitting" | "submitted" | "scoring" | "results";
 
 // Test types that require listening to audio first
 const AUDIO_FIRST_TYPES = ["repeat-sentence", "retell-lecture", "answer-short-question", "summarize-spoken-text"];
@@ -49,6 +52,10 @@ export function SpeakingTest({
   const [score, setScore] = useState<ScoreResult | null>(null);
   const [spokenText, setSpokenText] = useState<string>("");
   const [showScoreModal, setShowScoreModal] = useState(false);
+  const [responseId, setResponseId] = useState<string | null>(null);
+  const [submittedAudioPath, setSubmittedAudioPath] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const { credits, refresh: refreshCredits } = useCredits();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -71,7 +78,7 @@ export function SpeakingTest({
     permissionState: micPermission,
     requestPermission: requestMicPermission,
     error: micError,
-  } = useMicrophonePermission(true);
+  } = useMicrophonePermission();
 
   const typeInfo = getTestTypeInfo(question.type);
 
@@ -90,6 +97,9 @@ export function SpeakingTest({
     setScore(null);
     setSpokenText("");
     setShowScoreModal(false);
+    setResponseId(null);
+    setSubmittedAudioPath(null);
+    setIsConfirmOpen(false);
     resetRecording();
   }, [question.id]);
 
@@ -125,60 +135,73 @@ export function SpeakingTest({
     }
   }, [isRecording, recordingTime, question.recordTime, stopRecording]);
 
-  // Process audio when recording stops
+  // Keep the recording as a draft until the learner explicitly submits it.
   useEffect(() => {
-    if (audioBlob && phase === "recording") {
-      processRecording();
-    }
-  }, [audioBlob]);
+    if (audioBlob && phase === "recording") setPhase("ready-to-submit");
+  }, [audioBlob, phase]);
 
   const [discussionRefreshKey, setDiscussionRefreshKey] = useState(0);
 
-  const processRecording = async () => {
-    if (!audioBlob) return;
-    setPhase("processing");
-    
+  const submitResponse = async () => {
+    if (!audioBlob || phase !== "ready-to-submit") return;
+    setPhase("submitting");
+
     try {
       const transcription = await transcribeAudio(audioBlob);
       setSpokenText(transcription);
 
-      // Upload audio FIRST so we can hand the storage path to the scoring
-      // function — which will persist the attempt server-side (so the client
-      // never writes scores itself).
       let audioPath: string | null = null;
       try {
-        audioPath = await uploadRecording({
-          blob: audioBlob,
-          questionId: question.id,
-        });
+        audioPath = await uploadRecording({ blob: audioBlob, questionId: question.id });
       } catch (uploadErr) {
         console.error("Recording upload failed:", uploadErr);
       }
 
-      const result = await scoreSpeaking({
+      const id = await savePracticeResponse({
+        questionId: question.id,
+        section: "speaking",
         testType: question.type,
-        spokenText: transcription,
+        responseText: transcription,
+        audioPath,
+        durationSeconds: recordingTime,
+      });
+      setResponseId(id);
+      setSubmittedAudioPath(audioPath);
+      setPhase("submitted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not submit your response");
+      setPhase("ready-to-submit");
+    }
+  };
+
+  const handleGetScore = async () => {
+    if (!responseId) return;
+    setIsConfirmOpen(false);
+    setPhase("scoring");
+
+    try {
+      const result = await scoreSpeaking({
+        responseId,
+        testType: question.type,
+        spokenText,
         originalText: question.content.text,
         imageDescription: question.content.imageDescription,
         lectureContent: question.content.lectureContent,
         question: question.content.question,
         expectedAnswer: question.content.expectedAnswer,
-        questionId: question.id,
-        audioPath,
-        durationSeconds: recordingTime,
       });
-
       setScore(result);
       setPhase("results");
       setShowScoreModal(true);
-
-      onComplete(result, transcription, recordingTime, audioPath);
-      setDiscussionRefreshKey((k) => k + 1);
+      onComplete(result, spokenText, recordingTime, submittedAudioPath);
+      setDiscussionRefreshKey((key) => key + 1);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to process recording");
-      setPhase("prep");
-      setPrepTime(question.prepTime);
-      resetRecording();
+      const message = await getPracticeScoreError(err, "Scoring failed. Your credit will be restored.");
+      toast.error(message);
+      setPhase("submitted");
+      if (message.toLowerCase().includes("no scoring credits")) setIsConfirmOpen(true);
+    } finally {
+      await refreshCredits();
     }
   };
 
@@ -192,6 +215,9 @@ export function SpeakingTest({
     setSpokenText("");
     setPrepTime(question.prepTime);
     setShowScoreModal(false);
+    setResponseId(null);
+    setSubmittedAudioPath(null);
+    setIsConfirmOpen(false);
     resetRecording();
     if (needsAudioFirst && ttsSupported) {
       setPhase("listen");
@@ -331,20 +357,6 @@ export function SpeakingTest({
           />
         )}
 
-        {/* Microphone Permission Warning */}
-        {micPermission === "denied" && phase !== "results" && (
-          <div className="mt-4 p-4 bg-destructive/10 rounded-lg text-center border border-destructive/20">
-            <p className="font-medium text-destructive">Microphone access is required for speaking tests.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 border-destructive text-destructive hover:bg-destructive/10"
-              onClick={requestMicPermission}
-            >
-              Enable Microphone
-            </Button>
-          </div>
-        )}
       </Card>
 
       {/* Recording Controls */}
@@ -417,15 +429,39 @@ export function SpeakingTest({
           </div>
         )}
 
-        {/* Processing Phase */}
-        {phase === "processing" && (
-          <div className="text-center space-y-4 py-8">
+        {phase === "ready-to-submit" && (
+          <div className="space-y-4 py-6 text-center">
+            <CheckCircle className="mx-auto h-10 w-10 text-primary" />
+            <p className="font-medium">Recording complete. Submit it to save your response before scoring.</p>
+            <Button onClick={submitResponse} size="lg" className="gradient-primary text-primary-foreground">
+              Submit Response
+            </Button>
+          </div>
+        )}
+
+        {phase === "submitting" && (
+          <div className="text-center space-y-4 py-8" role="status" aria-live="polite">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+            <p className="font-medium">Submitting and saving your response...</p>
+          </div>
+        )}
+
+        {phase === "submitted" && (
+          <div className="space-y-4 py-6 text-center">
+            <CheckCircle className="mx-auto h-10 w-10 text-success" />
+            <p className="font-semibold">Response saved. You can request an AI score now.</p>
+            <Button onClick={() => setIsConfirmOpen(true)} size="lg" className="gradient-primary text-primary-foreground">
+              <Zap className="mr-2 h-5 w-5" /> Get AI Score
+            </Button>
+          </div>
+        )}
+
+        {phase === "scoring" && (
+          <div className="text-center space-y-4 py-8" role="status" aria-live="polite">
             <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
             <div>
-              <p className="font-medium">Analyzing your response...</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Using PTE scoring methodology
-              </p>
+              <p className="font-medium">Scoring your response...</p>
+              <p className="text-sm text-muted-foreground mt-1">Your credit is reserved while the score is generated.</p>
             </div>
           </div>
         )}
@@ -454,10 +490,10 @@ export function SpeakingTest({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Button variant="outline" size="sm" disabled={phase === "recording" || phase === "processing"}>
-          Submit
+        <Button variant="outline" size="sm" onClick={submitResponse} disabled={phase !== "ready-to-submit"}>
+          Submit Response
         </Button>
-        <Button variant="outline" size="sm" onClick={handleRetry} disabled={phase === "recording" || phase === "processing"}>
+        <Button variant="outline" size="sm" onClick={handleRetry} disabled={phase === "recording" || phase === "submitting" || phase === "scoring"}>
           Re-do
         </Button>
         <Button variant="outline" size="sm" className="text-primary border-primary">
@@ -510,6 +546,13 @@ export function SpeakingTest({
           onClose={() => setShowScoreModal(false)}
         />
       )}
+      <AiScoreConfirmationDialog
+        open={isConfirmOpen}
+        credits={credits}
+        isScoring={phase === "scoring"}
+        onOpenChange={setIsConfirmOpen}
+        onConfirm={handleGetScore}
+      />
 
       {/* Community Discussion / Board / Me */}
       <DiscussionPanel questionId={question.id} testType="speaking" refreshKey={discussionRefreshKey} />
