@@ -71,7 +71,7 @@ export function SpeakingTest({
     permissionState: micPermission,
     requestPermission: requestMicPermission,
     error: micError,
-  } = useMicrophonePermission(true);
+  } = useMicrophonePermission();
 
   const typeInfo = getTestTypeInfo(question.type);
 
@@ -331,20 +331,6 @@ export function SpeakingTest({
           />
         )}
 
-        {/* Microphone Permission Warning */}
-        {micPermission === "denied" && phase !== "results" && (
-          <div className="mt-4 p-4 bg-destructive/10 rounded-lg text-center border border-destructive/20">
-            <p className="font-medium text-destructive">Microphone access is required for speaking tests.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 border-destructive text-destructive hover:bg-destructive/10"
-              onClick={requestMicPermission}
-            >
-              Enable Microphone
-            </Button>
-          </div>
-        )}
       </Card>
 
       {/* Recording Controls */}
