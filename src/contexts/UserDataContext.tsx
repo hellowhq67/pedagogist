@@ -136,7 +136,7 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
       sevenDaysAgo.setHours(0, 0, 0, 0);
 
-      const [progressRes, subRes, attemptsRes, allAttemptsRes] = await Promise.all([
+      const [progressRes, subRes, attemptsRes, allAttemptsRes, writingRes] = await Promise.all([
         supabase.from("user_progress").select("*").eq("user_id", user.id),
         supabase.from("subscriptions").select("*").eq("user_id", user.id).maybeSingle(),
         supabase
@@ -149,6 +149,12 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
           .from("speaking_attempts")
           .select("created_at, overall_score, duration_seconds")
           .eq("user_id", user.id),
+        supabase
+          .from("practice_responses")
+          .select("created_at, score")
+          .eq("user_id", user.id)
+          .eq("section", "writing")
+          .eq("status", "scored"),
       ]);
 
       const progress = (progressRes.data || []) as UserProgressRow[];
@@ -157,6 +163,15 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
 
       const attempts = (attemptsRes.data || []) as SpeakingAttemptRow[];
       const allAttempts = (allAttemptsRes.data || []) as Array<{ created_at: string; overall_score: number; duration_seconds: number | null }>;
+      const writingAttempts = (writingRes.data || []).flatMap((response) => {
+        const score = response.score;
+        const overallScore = score && typeof score === "object" && !Array.isArray(score)
+          ? score.overallScore
+          : null;
+        return typeof overallScore === "number"
+          ? [{ created_at: response.created_at, overall_score: overallScore }]
+          : [];
+      });
 
       // Weekly progress
       const week = buildEmptyWeek();
@@ -167,6 +182,10 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       attempts.forEach((a) => {
         const d = a.created_at.split("T")[0];
         if (dayMap[d]) dayMap[d].speaking.push(a.overall_score);
+      });
+      writingAttempts.forEach((attempt) => {
+        const d = attempt.created_at.split("T")[0];
+        if (dayMap[d]) dayMap[d].writing.push(attempt.overall_score);
       });
       const avg = (arr: number[]) =>
         arr.length ? Math.round(arr.reduce((s, n) => s + n, 0) / arr.length) : 0;
@@ -183,29 +202,38 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
       const speakingAvg = allAttempts.length
         ? Math.round(allAttempts.reduce((s, a) => s + (a.overall_score || 0), 0) / allAttempts.length)
         : 0;
+      const writingAvg = writingAttempts.length
+        ? Math.round(writingAttempts.reduce((sum, attempt) => sum + attempt.overall_score, 0) / writingAttempts.length)
+        : 0;
       setSkillsRadar([
         { skill: "Speaking", score: speakingAvg, fullMark: 90 },
-        { skill: "Writing", score: 0, fullMark: 90 },
+        { skill: "Writing", score: writingAvg, fullMark: 90 },
         { skill: "Reading", score: 0, fullMark: 90 },
         { skill: "Listening", score: 0, fullMark: 90 },
       ]);
 
       setActivity([
         { name: "Speaking", value: allAttempts.length, fill: SKILL_COLORS.Speaking },
-        { name: "Writing", value: 0, fill: SKILL_COLORS.Writing },
+        { name: "Writing", value: writingAttempts.length, fill: SKILL_COLORS.Writing },
         { name: "Reading", value: 0, fill: SKILL_COLORS.Reading },
         { name: "Listening", value: 0, fill: SKILL_COLORS.Listening },
       ]);
 
-      // Stats — derive from speaking_attempts directly so dashboard reflects activity
-      const totalAttempts = allAttempts.length;
+      const totalAttempts = allAttempts.length + writingAttempts.length;
       const totalSeconds = allAttempts.reduce((s, a) => s + (a.duration_seconds || 0), 0);
-      const allDates = allAttempts.map((a) => a.created_at.split("T")[0]);
+      const allDates = [
+        ...allAttempts.map((attempt) => attempt.created_at.split("T")[0]),
+        ...writingAttempts.map((attempt) => attempt.created_at.split("T")[0]),
+      ];
+      const allScores = [
+        ...allAttempts.map((attempt) => attempt.overall_score || 0),
+        ...writingAttempts.map((attempt) => attempt.overall_score),
+      ];
       setStats({
         questionsDone: totalAttempts,
         practiceHours: Math.round((totalSeconds / 3600) * 10) / 10,
         streakDays: computeStreak(allDates),
-        averageScore: speakingAvg,
+        averageScore: allScores.length ? Math.round(allScores.reduce((sum, value) => sum + value, 0) / allScores.length) : 0,
       });
     } catch (err) {
       console.error("UserDataContext fetch error:", err);
@@ -217,6 +245,21 @@ export function UserDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`dashboard-subscription-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (payload.new) setSubscription(payload.new as SubscriptionRow);
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [user]);
 
   return (
     <UserDataContext.Provider

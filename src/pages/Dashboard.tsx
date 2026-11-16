@@ -142,7 +142,7 @@ export default function Dashboard() {
   const [completedQuestions, setCompletedQuestions] = useState<Set<string>>(new Set());
   const [isQuestionPanelOpen, setIsQuestionPanelOpen] = useState(false);
   const { saveAttempt } = useUserHistory();
-  const { remainingAttempts, canScore, incrementUsage } = useScoringLimit();
+  const { remainingAttempts, canScore } = useScoringLimit();
 
   const tier = subscription?.tier ?? "free";
   const FREE_QUESTION_LIMIT = 2;
@@ -182,12 +182,6 @@ export default function Dashboard() {
     if (!currentQuestion) return;
     if (isCurrentLocked) {
       toast.error("This question is locked. Upgrade to unlock all questions.");
-      return;
-    }
-    // Server-side rate limit applies to every practice attempt
-    const canProceed = await incrementUsage();
-    if (!canProceed) {
-      toast.error("You've run out of scoring credits. Upgrade to keep practicing.");
       return;
     }
     setCompletedQuestions((prev) => new Set(prev).add(currentQuestion.id));

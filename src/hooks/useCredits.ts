@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import { toast } from "sonner";
 
 export function useCredits() {
   const { user } = useAuth();
@@ -10,7 +9,12 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
 
   const fetchCredits = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
+    if (!user) {
+      setCredits(0);
+      setTier("free");
+      setLoading(false);
+      return;
+    }
     const { data } = await supabase
       .from("subscriptions")
       .select("credits_remaining, tier")
@@ -31,10 +35,11 @@ export function useCredits() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "subscriptions", filter: `user_id=eq.${user.id}` },
-        (payload: any) => {
+        (payload) => {
           if (payload.new) {
-            setCredits(payload.new.credits_remaining);
-            setTier(payload.new.tier);
+            const subscription = payload.new as { credits_remaining?: number; tier?: string };
+            if (subscription.credits_remaining != null) setCredits(subscription.credits_remaining);
+            if (subscription.tier) setTier(subscription.tier);
           }
         }
       )
@@ -42,22 +47,5 @@ export function useCredits() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  /** Atomically consume 1 credit on the server. Returns true if allowed. */
-  const consume = useCallback(async (): Promise<boolean> => {
-    const { data, error } = await (supabase as any).rpc("consume_scoring_credit");
-    if (error) {
-      toast.error("Could not check credit balance");
-      return false;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row?.ok) {
-      toast.error("Out of scoring credits — upgrade to continue");
-      setCredits(0);
-      return false;
-    }
-    setCredits(row.remaining);
-    return true;
-  }, []);
-
-  return { credits: credits ?? 0, tier, loading, consume, refresh: fetchCredits };
+  return { credits: credits ?? 0, tier, loading, refresh: fetchCredits };
 }

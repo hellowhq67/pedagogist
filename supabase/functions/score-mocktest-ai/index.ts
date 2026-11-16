@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { beginScoreRequest, createScoreAdmin, finishScoreRequest, refundScoreRequest, type ScoreReservation } from "../_shared/ai-score-credit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,7 @@ type QuestionType =
 
 interface ScoringRequest {
   questionType: QuestionType;
+  responseId?: string;
   section: string;
   // Speaking inputs
   spokenText?: string;
@@ -117,6 +119,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let reserved: ScoreReservation | null = null;
   try {
     // Require authenticated user
     const authHeader = req.headers.get("Authorization");
@@ -139,34 +142,110 @@ serve(async (req) => {
       });
     }
 
-    const request: ScoringRequest = await req.json();
+    let request: ScoringRequest = await req.json();
     const { questionType } = request;
-
-    console.log(`[MOCKTEST AI SCORER] Processing ${questionType} for user ${userData.user.id}`);
-
-    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
-    if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not configured");
+    if (!questionType || !(questionType in MAX_SCORES)) {
+      return new Response(JSON.stringify({ error: "Invalid question type" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const maxScore = MAX_SCORES[questionType] || 1;
-    let feedback: DetailedFeedback;
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+    const needsAi = isSpeakingQuestion(questionType) || isWritingQuestion(questionType);
+    if (needsAi && !GOOGLE_API_KEY) throw new Error("GOOGLE_API_KEY is not configured");
 
-    // Route to appropriate scoring logic
+    let admin: ReturnType<typeof createScoreAdmin> | null = null;
+    let remaining: number | null = null;
+    let tier: string | null = null;
+    if (needsAi) {
+      const responseId = request.responseId;
+      if (!responseId || !/^[0-9a-f-]{36}$/i.test(responseId)) {
+        return new Response(JSON.stringify({ error: "Submit the response before requesting an AI score" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      admin = createScoreAdmin();
+      const { data: savedResponse, error: responseError } = await admin
+        .from("practice_responses")
+        .select("id, user_id, section, test_type, response_text")
+        .eq("id", responseId)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (responseError || !savedResponse) {
+        return new Response(JSON.stringify({ error: "Submitted response not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const expectedSection = isSpeakingQuestion(questionType) ? "speaking" : "writing";
+      const storedText = savedResponse.response_text?.trim();
+      if (savedResponse.section !== expectedSection || savedResponse.test_type !== questionType || !storedText || storedText.length > 12000) {
+        return new Response(JSON.stringify({ error: "Submitted response does not match this scoring request" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      request = expectedSection === "speaking"
+        ? { ...request, spokenText: storedText }
+        : { ...request, writtenText: storedText };
+
+      const claim = await beginScoreRequest(admin, userData.user.id, responseId);
+      if (!claim?.ok) {
+        const noCredits = (claim?.remaining ?? 0) <= 0;
+        return new Response(JSON.stringify({
+          error: noCredits ? "No scoring credits remaining" : "This response is already being scored",
+          remaining: claim?.remaining ?? 0,
+          tier: claim?.tier ?? "free",
+        }), {
+          status: noCredits ? 402 : 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (claim.already_scored && claim.saved_score) {
+        return new Response(JSON.stringify(claim.saved_score), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      reserved = { admin, userId: userData.user.id, responseId };
+      remaining = claim.remaining;
+      tier = claim.tier;
+    }
+
+    console.log(`[MOCKTEST AI SCORER] Processing ${questionType} for user ${userData.user.id}`);
+    const maxScore = MAX_SCORES[questionType];
+    let feedback: DetailedFeedback;
     if (isSpeakingQuestion(questionType)) {
-      feedback = await scoreSpeaking(request, GOOGLE_API_KEY, maxScore);
+      feedback = await scoreSpeaking(request, GOOGLE_API_KEY!, maxScore);
     } else if (isWritingQuestion(questionType)) {
-      feedback = await scoreWriting(request, GOOGLE_API_KEY, maxScore);
+      feedback = await scoreWriting(request, GOOGLE_API_KEY!, maxScore);
     } else {
       feedback = scoreObjective(request, maxScore);
     }
 
-    console.log(`[MOCKTEST AI SCORER] Score: ${feedback.totalScore}/${feedback.maxScore}`);
+    if (reserved) {
+      await finishScoreRequest(reserved.admin, reserved.userId, reserved.responseId, feedback);
+      reserved = null;
+      const { data: subscription } = await admin!
+        .from("subscriptions")
+        .select("credits_remaining, tier")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      remaining = subscription?.credits_remaining ?? 0;
+      tier = subscription?.tier ?? "free";
+    }
 
-    return new Response(JSON.stringify(feedback), {
+    console.log(`[MOCKTEST AI SCORER] Score: ${feedback.totalScore}/${feedback.maxScore}`);
+    return new Response(JSON.stringify({ ...feedback, ...(remaining !== null ? { remaining, tier } : {}) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    if (reserved) {
+      try {
+        await refundScoreRequest(reserved.admin, reserved.userId, reserved.responseId);
+      } catch (refundError) {
+        console.error("Failed to restore scoring credit:", refundError);
+      }
+    }
     console.error("[MOCKTEST AI SCORER] Error:", error);
     return new Response(
       JSON.stringify({ 

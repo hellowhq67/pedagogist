@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { beginScoreRequest, createScoreAdmin, finishScoreRequest, refundScoreRequest, type ScoreReservation } from "../_shared/ai-score-credit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +17,8 @@ interface ScoringRequest {
     | "summarize-spoken-text"
     | "read-and-retell";
   originalText?: string;
-  spokenText: string;
+  spokenText?: string;
+  responseId: string;
   imageDescription?: string;
   lectureContent?: string;
   question?: string;
@@ -40,14 +42,6 @@ interface ScoreResult {
   };
 }
 
-// Daily limits by tier
-const DAILY_LIMITS: Record<string, number> = {
-  free: 5,
-  basic: 50,
-  premium: 200,
-  enterprise: 1000,
-};
-
 // PTE Scoring weights based on Pearson official methodology
 const PTE_WEIGHTS = {
   "read-aloud": { content: 0.4, fluency: 0.3, pronunciation: 0.3 },
@@ -59,41 +53,12 @@ const PTE_WEIGHTS = {
   "read-and-retell": { content: 0.5, fluency: 0.25, pronunciation: 0.25 },
 };
 
-async function checkRateLimit(supabase: any, userId: string): Promise<{ allowed: boolean; remaining: number; tier: string }> {
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Get user's subscription tier
-  const { data: subscription } = await supabase
-    .from('subscriptions')
-    .select('tier, daily_credits_used')
-    .eq('user_id', userId)
-    .single();
-  
-  const tier = subscription?.tier || 'free';
-  const dailyLimit = DAILY_LIMITS[tier] || 5;
-  const used = subscription?.daily_credits_used || 0;
-  
-  if (used >= dailyLimit) {
-    return { allowed: false, remaining: 0, tier };
-  }
-  
-  // Increment usage
-  await supabase
-    .from('subscriptions')
-    .update({ 
-      daily_credits_used: used + 1,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', userId);
-  
-  return { allowed: true, remaining: dailyLimit - used - 1, tier };
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let reserved: ScoreReservation | null = null;
   try {
     // Initialize Supabase client with user's auth
     const authHeader = req.headers.get('Authorization');
@@ -119,28 +84,64 @@ serve(async (req) => {
       );
     }
 
-    // Check rate limit
-    const rateLimit = await checkRateLimit(supabase, user.id);
-    if (!rateLimit.allowed) {
-      console.log(`Rate limit exceeded for user ${user.id} (tier: ${rateLimit.tier})`);
-      return new Response(
-        JSON.stringify({ 
-          error: "Daily scoring limit exceeded",
-          remaining: 0,
-          tier: rateLimit.tier
-        }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const request = await req.json() as ScoringRequest;
+    const { testType, responseId, originalText, imageDescription, lectureContent, question, expectedAnswer } = request;
+    if (!responseId || !PTE_WEIGHTS[testType] || !/^[0-9a-f-]{36}$/i.test(responseId)) {
+      return new Response(JSON.stringify({ error: "Invalid scoring request" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-
-    console.log(`Rate limit check passed: ${rateLimit.remaining} remaining (tier: ${rateLimit.tier})`);
-
-    const { testType, originalText, spokenText, imageDescription, lectureContent, question, expectedAnswer, questionId, audioPath, durationSeconds } = await req.json() as ScoringRequest;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const admin = createScoreAdmin();
+    const { data: savedResponse, error: responseError } = await admin
+      .from("practice_responses")
+      .select("id, user_id, question_id, section, test_type, response_text, audio_path, duration_seconds")
+      .eq("id", responseId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (responseError || !savedResponse) {
+      return new Response(JSON.stringify({ error: "Submitted response not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    if (savedResponse.section !== "speaking" || savedResponse.test_type !== testType) {
+      return new Response(JSON.stringify({ error: "Submitted response does not match this scoring request" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const spokenText = savedResponse.response_text?.trim();
+    if (!spokenText || spokenText.length > 12000) {
+      return new Response(JSON.stringify({ error: "The submitted response is empty or too long" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const claim = await beginScoreRequest(admin, user.id, responseId);
+    if (!claim?.ok) {
+      const noCredits = (claim?.remaining ?? 0) <= 0;
+      return new Response(JSON.stringify({
+        error: noCredits ? "No scoring credits remaining" : "This response is already being scored",
+        remaining: claim?.remaining ?? 0,
+        tier: claim?.tier ?? "free",
+      }), {
+        status: noCredits ? 402 : 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (claim.already_scored && claim.saved_score) {
+      return new Response(JSON.stringify({ ...claim.saved_score, remaining: claim.remaining, tier: claim.tier }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    reserved = { admin, userId: user.id, responseId };
+
+    const questionId = savedResponse.question_id;
+    const audioPath = savedResponse.audio_path;
+    const durationSeconds = savedResponse.duration_seconds;
 
     // Enhanced PTE-aligned scoring prompt based on Pearson's official methodology
     const systemPrompt = `You are an expert PTE Academic Speaking evaluator trained on Pearson's official scoring methodology.
@@ -496,18 +497,8 @@ Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
       
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI usage limit reached. Please add credits to continue." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      if (response.status === 429) throw new Error("AI scoring is temporarily rate limited. Your credit will be restored.");
+      if (response.status === 402) throw new Error("AI scoring is temporarily unavailable. Your credit will be restored.");
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
@@ -543,42 +534,51 @@ Calculate overall using weights: Content ${PTE_WEIGHTS[testType].content * 100}%
 
     console.log(`Scored successfully: Overall ${scoreResult.overallScore}/90 (C:${scoreResult.content} F:${scoreResult.fluency} P:${scoreResult.pronunciation})`);
 
-    // Persist the attempt server-side with service role so users cannot fabricate scores.
-    if (questionId) {
-      try {
-        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const admin = createClient(supabaseUrl, serviceKey, {
-          auth: { autoRefreshToken: false, persistSession: false },
-        });
-        const { error: insertErr } = await admin.from("speaking_attempts").insert({
-          user_id: user.id,
-          question_id: questionId,
-          test_type: testType,
-          spoken_text: spokenText,
-          overall_score: Math.round(scoreResult.overallScore),
-          content_score: Math.round(scoreResult.content),
-          fluency_score: Math.round(scoreResult.fluency),
-          pronunciation_score: Math.round(scoreResult.pronunciation),
-          feedback: scoreResult.feedback,
-          detailed_analysis: scoreResult.detailedAnalysis,
-          duration_seconds: durationSeconds ?? null,
-          audio_url: audioPath ?? null,
-        });
-        if (insertErr) console.error("Failed to persist speaking attempt:", insertErr);
-      } catch (persistErr) {
-        console.error("Persistence error:", persistErr);
-      }
+    await finishScoreRequest(admin, user.id, responseId, scoreResult);
+    reserved = null;
+
+    try {
+      const { error: insertErr } = await admin.from("speaking_attempts").insert({
+        user_id: user.id,
+        question_id: questionId,
+        test_type: testType,
+        spoken_text: spokenText,
+        overall_score: Math.round(scoreResult.overallScore),
+        content_score: Math.round(scoreResult.content),
+        fluency_score: Math.round(scoreResult.fluency),
+        pronunciation_score: Math.round(scoreResult.pronunciation),
+        feedback: scoreResult.feedback,
+        detailed_analysis: scoreResult.detailedAnalysis,
+        duration_seconds: durationSeconds ?? null,
+        audio_url: audioPath ?? null,
+      });
+      if (insertErr) console.error("Failed to persist speaking attempt:", insertErr);
+    } catch (persistErr) {
+      console.error("Speaking attempt history persistence error:", persistErr);
     }
+
+    const { data: subscription } = await admin
+      .from("subscriptions")
+      .select("credits_remaining, tier")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
     return new Response(JSON.stringify({
       ...scoreResult,
-      remaining: rateLimit.remaining,
-      tier: rateLimit.tier
+      remaining: subscription?.credits_remaining ?? 0,
+      tier: subscription?.tier ?? "free",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
+    if (reserved) {
+      try {
+        await refundScoreRequest(reserved.admin, reserved.userId, reserved.responseId);
+      } catch (refundError) {
+        console.error("Failed to restore scoring credit:", refundError);
+      }
+    }
     console.error("Scoring error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Scoring failed" }),
