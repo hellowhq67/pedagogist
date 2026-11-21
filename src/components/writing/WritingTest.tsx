@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RotateCcw, CheckCircle, AlertCircle, Lightbulb } from "lucide-react";
+import { Loader2, RotateCcw, CheckCircle, AlertCircle, Lightbulb, Zap } from "lucide-react";
 import { WritingQuestion } from "@/data/writingQuestions";
 import { CountdownTimer } from "@/components/speaking/CountdownTimer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AiScoreConfirmationDialog } from "@/components/practice/AiScoreConfirmationDialog";
+import { useCredits } from "@/hooks/useCredits";
+import { getPracticeScoreError, savePracticeResponse } from "@/lib/practiceResponses";
 
 interface WritingTestProps {
   question: WritingQuestion;
@@ -30,13 +33,16 @@ interface WritingScoreResult {
   };
 }
 
-type Phase = "writing" | "processing" | "results";
+type Phase = "writing" | "submitting" | "submitted" | "scoring" | "results";
 
 export function WritingTest({ question, onComplete, onNext }: WritingTestProps) {
   const [phase, setPhase] = useState<Phase>("writing");
   const [writtenText, setWrittenText] = useState("");
   const [timeRemaining, setTimeRemaining] = useState(question.timeLimit);
   const [score, setScore] = useState<WritingScoreResult | null>(null);
+  const [responseId, setResponseId] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const { credits, refresh: refreshCredits } = useCredits();
 
   const wordCount = writtenText.trim().split(/\s+/).filter(Boolean).length;
   const isWithinWordLimit = wordCount >= question.minWords && wordCount <= question.maxWords;
@@ -47,6 +53,8 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
     setWrittenText("");
     setTimeRemaining(question.timeLimit);
     setScore(null);
+    setResponseId(null);
+    setIsConfirmOpen(false);
   }, [question.id]);
 
   // Timer countdown
@@ -54,10 +62,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
     if (phase !== "writing" || timeRemaining <= 0) return;
     const timer = setInterval(() => {
       setTimeRemaining((t) => {
-        if (t <= 1) {
-          handleSubmit();
-          return 0;
-        }
+        if (t <= 1) return 0;
         return t - 1;
       });
     }, 1000);
@@ -65,39 +70,63 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
   }, [phase, timeRemaining]);
 
   const handleSubmit = useCallback(async () => {
-    if (wordCount < question.minWords) {
-      toast.error(`Please write at least ${question.minWords} words`);
+    if (wordCount < question.minWords || wordCount > question.maxWords) {
+      toast.error(`Write between ${question.minWords} and ${question.maxWords} words before submitting.`);
       return;
     }
 
-    setPhase("processing");
+    setPhase("submitting");
+    try {
+      const id = await savePracticeResponse({
+        questionId: question.id,
+        section: "writing",
+        testType: question.type,
+        responseText: writtenText,
+      });
+      setResponseId(id);
+      setPhase("submitted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save your response");
+      setPhase("writing");
+    }
+  }, [writtenText, wordCount, question]);
+
+  const handleGetScore = useCallback(async () => {
+    if (!responseId) return;
+    setIsConfirmOpen(false);
+    setPhase("scoring");
 
     try {
       const { data, error } = await supabase.functions.invoke("score-writing", {
         body: {
+          responseId,
           testType: question.type,
-          writtenText,
           sourceText: question.content.sourceText,
           essayPrompt: question.content.essayPrompt,
           emailContext: question.content.emailContext,
         },
       });
-
       if (error) throw error;
 
       setScore(data as WritingScoreResult);
       setPhase("results");
       onComplete(data as WritingScoreResult, writtenText);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to score response");
-      setPhase("writing");
+      const message = await getPracticeScoreError(err, "Scoring failed. Your credit will be restored.");
+      toast.error(message);
+      setPhase("submitted");
+      if (message.toLowerCase().includes("no scoring credits")) setIsConfirmOpen(true);
+    } finally {
+      await refreshCredits();
     }
-  }, [writtenText, wordCount, question, onComplete]);
+  }, [responseId, question, writtenText, onComplete, refreshCredits]);
 
   const handleRetry = () => {
     setWrittenText("");
     setTimeRemaining(question.timeLimit);
     setScore(null);
+    setResponseId(null);
+    setIsConfirmOpen(false);
     setPhase("writing");
   };
 
@@ -179,7 +208,7 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
             <div className="flex justify-end">
               <Button
                 onClick={handleSubmit}
-                disabled={wordCount < question.minWords}
+                disabled={!isWithinWordLimit}
                 className="gradient-primary text-primary-foreground"
               >
                 Submit Response
@@ -188,14 +217,33 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
           </div>
         )}
 
-        {phase === "processing" && (
-          <div className="text-center space-y-4 py-8">
+        {phase === "submitting" && (
+          <div className="text-center space-y-4 py-8" role="status" aria-live="polite">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+            <p className="font-medium">Saving your response...</p>
+          </div>
+        )}
+
+        {phase === "submitted" && (
+          <div className="space-y-4 py-6 text-center">
+            <CheckCircle className="mx-auto h-10 w-10 text-success" />
+            <div>
+              <p className="font-semibold">Response submitted</p>
+              <p className="text-sm text-muted-foreground">Your response is saved. Request an AI score when you&apos;re ready.</p>
+            </div>
+            <Button onClick={() => setIsConfirmOpen(true)} className="gradient-primary text-primary-foreground">
+              <Zap className="mr-2 h-4 w-4" /> Get AI Score
+            </Button>
+            <Button onClick={handleRetry} variant="ghost" className="block mx-auto">Edit response</Button>
+          </div>
+        )}
+
+        {phase === "scoring" && (
+          <div className="text-center space-y-4 py-8" role="status" aria-live="polite">
             <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
             <div>
-              <p className="font-medium">Analyzing your response...</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Evaluating content, grammar, vocabulary, and form
-              </p>
+              <p className="font-medium">Scoring your response...</p>
+              <p className="text-sm text-muted-foreground mt-1">Your credit is reserved while the score is generated.</p>
             </div>
           </div>
         )}
@@ -283,6 +331,13 @@ export function WritingTest({ question, onComplete, onNext }: WritingTestProps) 
         )}
       </Card>
       <DiscussionPanel questionId={question.id} testType="writing" />
+      <AiScoreConfirmationDialog
+        open={isConfirmOpen}
+        credits={credits}
+        isScoring={phase === "scoring"}
+        onOpenChange={setIsConfirmOpen}
+        onConfirm={handleGetScore}
+      />
     </div>
   );
 }

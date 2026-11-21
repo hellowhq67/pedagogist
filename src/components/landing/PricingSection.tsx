@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,7 @@ const TIERS: Tier[] = [
       'Detailed Analytics',
       'Priority Support',
     ],
-    cta: 'Start Pro Trial',
+    cta: 'Choose Pro',
   },
   {
     name: 'Premium',
@@ -55,11 +56,18 @@ const TIERS: Tier[] = [
       '1-on-1 Coaching Sessions',
       'Score Guarantee',
     ],
-    cta: 'Go Premium',
+    cta: 'Choose Premium',
   },
 ];
 
 export function PricingSection() {
+  const { user } = useAuth();
+  const getCtaUrl = (name: string) => {
+    if (name === 'Free') return user ? '/dashboard' : `/auth?redirect=${encodeURIComponent('/dashboard')}`;
+    const billingPath = `/billing?plan=${name.toLowerCase()}`;
+    return user ? billingPath : `/auth?redirect=${encodeURIComponent(billingPath)}`;
+  };
+
   return (
     <section id="pricing" className="py-24 bg-muted/5 relative overflow-hidden">
       {/* Background decoration */}
@@ -82,6 +90,11 @@ export function PricingSection() {
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Start free. Upgrade anytime. Cancel whenever you want.
           </p>
+          <ul aria-label="Plan benefits" className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            <li className="flex items-center gap-2"><Check className="size-4 text-primary" />Monthly billing</li>
+            <li className="flex items-center gap-2"><Check className="size-4 text-primary" />Cancel anytime</li>
+            <li className="flex items-center gap-2"><Check className="size-4 text-primary" />Secure Stripe checkout</li>
+          </ul>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
@@ -96,7 +109,7 @@ export function PricingSection() {
               <Card
                 className={`h-full relative transition-all duration-300 ${
                   tier.highlight
-                    ? 'border-primary shadow-[0_0_40px_hsl(var(--primary)/0.2)] scale-105'
+                    ? 'border-primary/50 shadow-xl shadow-primary/10 ring-1 ring-primary/20 md:-translate-y-2'
                     : 'border-border/50 hover:border-primary/30'
                 }`}
               >
@@ -124,8 +137,8 @@ export function PricingSection() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  <ul className="space-y-3">
+                <CardContent className="flex flex-1 flex-col gap-4">
+                  <ul className="flex-1 space-y-3">
                     {tier.features.map((feature) => (
                       <li key={feature} className="flex items-center gap-3">
                         <div className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
@@ -138,14 +151,15 @@ export function PricingSection() {
 
                   <Button
                     asChild
-                    className={`w-full mt-6 ${
+                    variant={tier.highlight ? 'default' : 'outline'}
+                    className={`mt-auto w-full ${
                       tier.highlight
-                        ? 'bg-primary hover:bg-primary/90 shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
-                        : 'bg-secondary hover:bg-secondary/80'
+                        ? 'shadow-[0_0_20px_hsl(var(--primary)/0.3)]'
+                        : 'border-border text-foreground hover:bg-muted'
                     }`}
                     size="lg"
                   >
-                    <Link to="/auth">{tier.cta}</Link>
+                    <Link to={getCtaUrl(tier.name)}>{tier.cta}</Link>
                   </Button>
                 </CardContent>
               </Card>
